@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { MagnifyingGlassIcon, SparklesIcon } from '@heroicons/react/24/outline'
 import ChatInterface from './components/ChatInterface'
 import Header from './components/Header'
 import FadeContent from './components/FadeContent'
@@ -9,12 +8,13 @@ import AnimatedContent from './components/AnimatedContent'
 import StarBorderButton from './components/StarBorderButton'
 import Threads from './components/Threads'
 import Footer from './components/Footer'
+import SearchBar from './components/SearchBar'
 
 function HomePage() {
-  const [query, setQuery] = useState('')
   const [isSearching, setIsSearching] = useState(false)
   const [currentJobId, setCurrentJobId] = useState<string | null>(null)
   const [showDescription, setShowDescription] = useState(false)
+  const [currentQuery, setCurrentQuery] = useState('')
 
   const titleText = "Merg"
   const subtitleText = "AI-Powered Deep Search"
@@ -31,6 +31,7 @@ function HomePage() {
   const handleSearch = async (searchQuery: string) => {
     if (!searchQuery.trim()) return
 
+    setCurrentQuery(searchQuery)
     setIsSearching(true)
     setCurrentJobId(null)
 
@@ -133,58 +134,10 @@ function HomePage() {
             
             {/* Enhanced Search Bar */}
             <AnimatedContent animation="slideUp" delay={400}>
-              <div className="max-w-2xl mx-auto">
-                <div className="relative bg-dark-100 rounded-xl shadow-2xl border-2 border-gray-700 p-1 hover:border-purple-500 transition-all duration-300 hover:shadow-purple-500/20 hover:shadow-2xl group">
-                  <div className="flex items-center">
-                    <MagnifyingGlassIcon className="h-6 w-6 text-purple-400 ml-4 mr-3 group-hover:scale-110 transition-transform duration-200" />
-                    <input
-                      type="text"
-                      value={query}
-                      onChange={(e) => setQuery(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && handleSearch(query)}
-                      placeholder="Enter your search query..."
-                      className="flex-1 py-4 px-2 text-lg bg-transparent border-none outline-none placeholder-gray-500 font-medium text-gray-200 focus:placeholder-gray-400 transition-colors duration-200"
-                      disabled={isSearching}
-                    />
-                    <button
-                      onClick={() => handleSearch(query)}
-                      disabled={isSearching || !query.trim()}
-                      className={`
-                        relative mr-1 px-6 py-3 rounded-lg font-semibold text-sm transition-all duration-300 overflow-hidden
-                        ${isSearching || !query.trim() 
-                          ? 'bg-gray-600 text-gray-400 cursor-not-allowed' 
-                          : 'bg-gradient-to-r from-purple-500 to-purple-600 text-white hover:from-purple-600 hover:to-purple-700 hover:shadow-lg hover:shadow-purple-500/30 hover:scale-105 active:scale-95'
-                        }
-                      `}
-                    >
-                      {/* Glowing effect */}
-                      <div className={`absolute inset-0 bg-gradient-to-r from-purple-400 to-purple-600 opacity-0 transition-opacity duration-300 ${
-                        !(isSearching || !query.trim()) ? 'hover:opacity-20' : ''
-                      }`}></div>
-                      
-                      {/* Button content */}
-                      <div className="relative flex items-center">
-                        {isSearching ? (
-                          <>
-                            <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-2"></div>
-                            <span className="animate-pulse">Searching</span>
-                          </>
-                        ) : (
-                          <>
-                            <SparklesIcon className="h-4 w-4 mr-2 animate-pulse" />
-                            <span>Search</span>
-                          </>
-                        )}
-                      </div>
-                      
-                      {/* Shimmer effect */}
-                      {!(isSearching || !query.trim()) && (
-                        <div className="absolute top-0 -left-full w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-12 animate-shimmer"></div>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </div>
+              <SearchBar 
+                onSearch={handleSearch}
+                isSearching={isSearching}
+              />
             </AnimatedContent>
           </FadeContent>
         </div>
@@ -203,7 +156,7 @@ function HomePage() {
             <div className="max-w-5xl mx-auto">
               <ChatInterface
                 jobId={currentJobId}
-                query={query}
+                query={currentQuery}
                 isSearching={isSearching}
                 onSearchComplete={() => setIsSearching(false)}
               />
@@ -226,15 +179,6 @@ function HomePage() {
             opacity: 1;
             transform: translateY(0) scale(1);
           }
-        }
-        
-        @keyframes shimmer {
-          0% { left: -100%; }
-          100% { left: 100%; }
-        }
-        
-        .animate-shimmer {
-          animation: shimmer 2s infinite;
         }
       `}</style>
     </div>
