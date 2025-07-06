@@ -9,12 +9,14 @@ import StarBorderButton from './components/StarBorderButton'
 import Threads from './components/Threads'
 import Footer from './components/Footer'
 import SearchBar from './components/SearchBar'
+import { useAuth } from '../contexts/AuthContext'
 
 function HomePage() {
   const [isSearching, setIsSearching] = useState(false)
   const [currentJobId, setCurrentJobId] = useState<string | null>(null)
   const [showDescription, setShowDescription] = useState(false)
   const [currentQuery, setCurrentQuery] = useState('')
+  const { addSearchHistory } = useAuth()
 
   const titleText = "Merg"
   const subtitleText = "AI-Powered Deep Search"
@@ -47,6 +49,14 @@ function HomePage() {
       if (response.ok) {
         const data = await response.json()
         setCurrentJobId(data.job_id)
+        
+        // Save search to history (if user is logged in)
+        try {
+          await addSearchHistory(searchQuery, { job_id: data.job_id })
+        } catch (error) {
+          // Ignore errors for search history (user might not be logged in)
+          console.log('Search history not saved - user may not be logged in')
+        }
       } else {
         console.error('Search failed')
         setIsSearching(false)

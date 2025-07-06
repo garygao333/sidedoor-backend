@@ -14,8 +14,9 @@ The platform specializes in finding hard-to-locate content like early releases, 
 - **Framework**: Next.js 14 with App Router
 - **Styling**: Tailwind CSS with custom design system
 - **UI Components**: Custom animated components with WebGL effects
-- **Authentication**: Firebase integration
-- **Features**: Real-time chat interface, content discovery grid, responsive design
+- **Authentication**: Firebase Authentication with Firestore
+- **Database**: Firestore for user profiles, waitlist, and search history
+- **Features**: Real-time chat interface, content discovery grid, responsive design, waitlist management
 
 ### Backend
 - **API**: FastAPI with async support
@@ -50,6 +51,13 @@ The platform specializes in finding hard-to-locate content like early releases, 
 - Real-time streaming of search progress
 - WebSocket-based live updates
 - Markdown rendering for rich responses
+
+### 📝 **Waitlist & User Management**
+- Exclusive waitlist registration at `/waitlist`
+- Firebase Authentication integration
+- Firestore database for user profiles
+- Search history tracking for logged-in users
+- Waitlist management and early access control
 
 ### 🚀 **Modern UI/UX**
 - Beautiful animations and transitions

@@ -2,7 +2,15 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
-import { auth } from '../lib/firebase';
+import { doc, setDoc, collection, addDoc, query, where, orderBy, getDocs, serverTimestamp } from 'firebase/firestore';
+import { auth, db } from '../lib/firebase';
+
+interface SearchHistory {
+  id?: string;
+  query: string;
+  timestamp: any;
+  results?: any;
+}
 
 interface AuthContextType {
   user: User | null;
@@ -10,6 +18,9 @@ interface AuthContextType {
   signup: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   loading: boolean;
+  addSearchHistory: (query: string, results?: any) => Promise<void>;
+  getSearchHistory: () => Promise<SearchHistory[]>;
+  addToWaitlist: (email: string, password: string, additionalInfo?: any) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -40,7 +51,61 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signup = async (email: string, password: string) => {
-    await createUserWithEmailAndPassword(auth, email, password);
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    
+    // Create user document in Firestore
+    await setDoc(doc(db, 'users', userCredential.user.uid), {
+      email: userCredential.user.email,
+      createdAt: serverTimestamp(),
+      isWaitlisted: false,
+    });
+  };
+
+  const addToWaitlist = async (email: string, password: string, additionalInfo?: any) => {
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    
+    // Create user document in Firestore with waitlist status
+    await setDoc(doc(db, 'users', userCredential.user.uid), {
+      email: userCredential.user.email,
+      createdAt: serverTimestamp(),
+      isWaitlisted: true,
+      waitlistInfo: additionalInfo,
+    });
+
+    // Add to waitlist collection
+    await addDoc(collection(db, 'waitlist'), {
+      userId: userCredential.user.uid,
+      email: userCredential.user.email,
+      joinedAt: serverTimestamp(),
+      ...additionalInfo,
+    });
+  };
+
+  const addSearchHistory = async (query: string, results?: any) => {
+    if (!user) return;
+    
+    await addDoc(collection(db, 'searchHistory'), {
+      userId: user.uid,
+      query,
+      results,
+      timestamp: serverTimestamp(),
+    });
+  };
+
+  const getSearchHistory = async (): Promise<SearchHistory[]> => {
+    if (!user) return [];
+    
+    const q = query(
+      collection(db, 'searchHistory'),
+      where('userId', '==', user.uid),
+      orderBy('timestamp', 'desc')
+    );
+    
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    } as SearchHistory));
   };
 
   const logout = async () => {
@@ -52,7 +117,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     login,
     signup,
     logout,
-    loading
+    loading,
+    addSearchHistory,
+    getSearchHistory,
+    addToWaitlist
   };
 
   return (
