@@ -32,13 +32,14 @@ from typing import TypedDict, List, Dict, Any
 if "OPENAI_API_KEY" not in os.environ:
     raise RuntimeError("OPENAI_API_KEY environment variable not set")
 
-TOPK, MAX_WORKERS, MAX_ITER, WORKER_STEPS = 3, 2, 4, 3
+TOPK, MAX_WORKERS, MAX_ITER, WORKER_STEPS = 3, 1, 4, 3
 LINK_LIMIT = 100      # how many <a href> tags the sub-LLM wiHll inspect
 DEBUG = True
 
 import ray, nest_asyncio
 nest_asyncio.apply()
-ray.shutdown(); ray.init(ignore_reinit_error=True, num_cpus=MAX_WORKERS, log_to_driver=False)
+ray.shutdown()
+ray.init(local_mode=True, num_cpus=MAX_WORKERS, ignore_reinit_error=True)
 
 from playwright.async_api import async_playwright
 from duckduckgo_search import DDGS
@@ -86,7 +87,19 @@ async def click_reason(page):
 async def worker_job(url: str) -> dict:
     t0 = time.time()
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"])
+        browser = await p.chromium.launch(
+                headless=True,
+                args=[
+                    "--no-sandbox",               # required in Cloud Run / gVisor
+                    "--disable-dev-shm-usage",    # don’t rely on 64 MB /dev/shm
+                    "--single-process",           # avoid zygote for gVisor
+                    "--no-zygote",
+                    "--disable-gpu",
+                    "--disable-software-rasterizer",
+                    "--disable-extensions",
+                    "--disable-setupid-sandbox",
+                ],
+            )
         page    = await browser.new_page()
 
         try:

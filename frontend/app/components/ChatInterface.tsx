@@ -53,38 +53,44 @@ export default function ChatInterface({ jobId, query, isSearching, onSearchCompl
   useEffect(() => {
     if (!jobId) return
 
-    // Start with initial message
+    // Reset messages for new search
     setMessages([`🔍 Starting search for: **${query}**`])
 
-    // Set up EventSource for real-time updates
-    const eventSource = new EventSource(buildUrl(`/stream/${jobId}`))
+    // Build WebSocket URL (support relative + absolute backend URLs)
+    const httpUrl = buildUrl(`/ws/${jobId}`) // returns e.g. "/api/ws/123" or "https://backend/ws/123"
+    const wsUrl = httpUrl.replace(/^http/, 'ws') // http->ws, https->wss
 
-    eventSource.onmessage = (event) => {
+    const ws = new WebSocket(wsUrl)
+
+    ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data)
-        
-        if (data.status === 'complete') {
-          eventSource.close()
+        if (data.type === 'log' && data.message) {
+          // live reasoning / search steps
+          setMessages(prev => [...prev, `🤖 ${data.message}`])
+        } else if (data.type === 'status' && data.status === 'completed') {
+          ws.close()
           onSearchComplete()
           fetchJobStatus()
-        } else if (data.message) {
-          setMessages(prev => [...prev, `🤖 ${data.message}`])
+        } else if (data.type === 'error' && data.message) {
+          setMessages(prev => [...prev, `❌ ${data.message}`])
+          ws.close()
+          onSearchComplete()
         }
-      } catch (error) {
-        console.error('Error parsing SSE data:', error)
+      } catch (err) {
+        console.error('Error parsing WS data:', err)
       }
     }
 
-    eventSource.onerror = (error) => {
-      console.error('EventSource failed:', error)
-      eventSource.close()
+    ws.onerror = (e) => {
+      console.error('WebSocket error:', e)
+      ws.close()
       onSearchComplete()
       fetchJobStatus()
     }
 
-    // Cleanup
     return () => {
-      eventSource.close()
+      ws.close()
     }
   }, [jobId, query, onSearchComplete])
 
@@ -92,7 +98,9 @@ export default function ChatInterface({ jobId, query, isSearching, onSearchCompl
     if (!jobId) return
 
     try {
-      const response = await fetch(buildUrl(`/poll/${jobId}`))
+      // Ensure we always hit the /api/poll endpoint regardless of API_BASE format
+      const pollUrl = API_BASE ? `${API_BASE}/api/poll/${jobId}` : `/api/poll/${jobId}`
+      const response = await fetch(pollUrl)
       if (response.ok) {
         const status = await response.json()
         setJobStatus(status)
