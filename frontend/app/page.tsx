@@ -1,22 +1,19 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import ChatInterface from './components/ChatInterface'
 import Header from './components/Header'
 import FadeContent from './components/FadeContent'
 import AnimatedContent from './components/AnimatedContent'
 import StarBorderButton from './components/StarBorderButton'
 import Threads from './components/Threads'
 import Footer from './components/Footer'
-import SearchBar from './components/SearchBar'
 import { useAuth } from '../contexts/AuthContext'
+import { useRouter } from 'next/navigation'
 
 function HomePage() {
-  const [isSearching, setIsSearching] = useState(false)
-  const [currentJobId, setCurrentJobId] = useState<string | null>(null)
   const [showDescription, setShowDescription] = useState(false)
-  const [currentQuery, setCurrentQuery] = useState('')
-  const { addSearchHistory } = useAuth()
+  const { user } = useAuth()
+  const router = useRouter()
 
   const titleText = "Merg"
   const subtitleText = "AI-Powered Deep Search"
@@ -30,40 +27,11 @@ function HomePage() {
     return () => clearTimeout(timeout)
   }, [])
 
-  const handleSearch = async (searchQuery: string) => {
-    if (!searchQuery.trim()) return
-
-    setCurrentQuery(searchQuery)
-    setIsSearching(true)
-    setCurrentJobId(null)
-
-    try {
-      const response = await fetch('/api/ask', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ q: searchQuery }),
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        setCurrentJobId(data.job_id)
-        
-        // Save search to history (if user is logged in)
-        try {
-          await addSearchHistory(searchQuery, { job_id: data.job_id })
-        } catch (error) {
-          // Ignore errors for search history (user might not be logged in)
-          console.log('Search history not saved - user may not be logged in')
-        }
-      } else {
-        console.error('Search failed')
-        setIsSearching(false)
-      }
-    } catch (error) {
-      console.error('Search error:', error)
-      setIsSearching(false)
+  const handleTryItNow = () => {
+    if (user) {
+      router.push('/chat')
+    } else {
+      router.push('/login')
     }
   }
 
@@ -142,12 +110,24 @@ function HomePage() {
               </div>
             </AnimatedContent>
             
-            {/* Enhanced Search Bar */}
+            {/* Try It Now Button */}
             <AnimatedContent animation="slideUp" delay={400}>
-              <SearchBar 
-                onSearch={handleSearch}
-                isSearching={isSearching}
-              />
+              <StarBorderButton
+                onClick={handleTryItNow}
+                variant="primary"
+                size="lg"
+                className="shadow-xl hover:shadow-2xl"
+              >
+                Try It Now
+                <svg 
+                  className="w-5 h-5 transform group-hover:translate-x-1 transition-transform duration-300" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                </svg>
+              </StarBorderButton>
             </AnimatedContent>
           </FadeContent>
         </div>
@@ -159,24 +139,8 @@ function HomePage() {
         </div>
       </section>
 
-      {/* Chat Interface */}
-      {(isSearching || currentJobId) && (
-        <section className="py-12 bg-dark-100">
-          <div className="container mx-auto px-4">
-            <div className="max-w-5xl mx-auto">
-              <ChatInterface
-                jobId={currentJobId}
-                query={currentQuery}
-                isSearching={isSearching}
-                onSearchComplete={() => setIsSearching(false)}
-              />
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* Footer - Only show when not searching */}
-      {!isSearching && !currentJobId && <Footer />}
+      {/* Footer */}
+      <Footer />
 
       {/* Custom Styles */}
       <style jsx>{`

@@ -29,7 +29,7 @@ export default function StarBorderButton({
   }
 
   const variantClasses = {
-    primary: 'bg-gradient-to-r from-purple-500 to-purple-600 text-white hover:from-purple-600 hover:to-purple-700',
+    primary: 'bg-transparent border-2 border-purple-500 text-purple-300 hover:border-purple-400 hover:text-purple-200',
     secondary: 'bg-white text-purple-600 border-2 border-purple-300 hover:bg-purple-50 hover:border-purple-400'
   }
 

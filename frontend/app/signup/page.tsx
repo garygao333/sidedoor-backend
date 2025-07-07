@@ -35,7 +35,7 @@ export default function Signup() {
 
     try {
       await signup(email, password);
-      router.push('/');
+      router.push('/chat');
     } catch (error: any) {
       setError(error.message);
     } finally {

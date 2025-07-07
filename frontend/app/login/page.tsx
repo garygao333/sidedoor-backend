@@ -22,7 +22,7 @@ export default function Login() {
 
     try {
       await login(email, password);
-      router.push('/');
+      router.push('/chat');
     } catch (error: any) {
       setError(error.message);
     } finally {
