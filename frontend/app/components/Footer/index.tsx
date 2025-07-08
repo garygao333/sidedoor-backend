@@ -5,14 +5,11 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { EnvelopeIcon, SparklesIcon } from '@heroicons/react/24/outline'
 import SocialLinks from './SocialLinks'
-import NewsletterSection from './NewsletterSection'
 import FadeContent from '../FadeContent'
 
 export default function Footer() {
   return (
     <footer className="bg-gray-900 border-t border-gray-800">
-      {/* Newsletter/CTA Section */}
-      <NewsletterSection />
       
       {/* Main Footer */}
       <div className="px-4 py-16">
@@ -55,7 +52,7 @@ export default function Footer() {
                   </li>
                   <li>
                     <Link href="/demo" className="text-gray-400 hover:text-purple-400 transition-colors">
-                      Components Demo
+                      Demo
                     </Link>
                   </li>
                   <li>
@@ -86,7 +83,7 @@ export default function Footer() {
                     </Link>
                   </li>
                   <li>
-                    <Link href="#" className="text-gray-400 hover:text-purple-400 transition-colors">
+                    <Link href="/contact" className="text-gray-400 hover:text-purple-400 transition-colors">
                       Contact
                     </Link>
                   </li>
