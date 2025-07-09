@@ -5,6 +5,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { EyeIcon, EyeSlashIcon, CheckCircleIcon, SparklesIcon, RocketLaunchIcon } from '@heroicons/react/24/outline';
+import StarBorderButton from '../components/StarBorderButton';
+import Hyperspeed from '../components/Hyperspeed';
 
 export default function Waitlist() {
   const [email, setEmail] = useState('');
@@ -71,11 +73,46 @@ export default function Waitlist() {
   if (success) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center px-4 relative">
-        {/* Simple Success Background */}
-        <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute top-20 right-20 w-24 h-24 bg-green-500/20 opacity-50"></div>
-          <div className="absolute bottom-32 left-16 w-16 h-16 bg-green-600/30 opacity-40"></div>
-        </div>
+        {/* Hyperspeed Background */}
+        <Hyperspeed
+          effectOptions={{
+            onSpeedUp: () => { },
+            onSlowDown: () => { },
+            distortion: 'turbulentDistortion',
+            length: 400,
+            roadWidth: 10,
+            islandWidth: 2,
+            lanesPerRoad: 4,
+            fov: 90,
+            fovSpeedUp: 150,
+            speedUp: 2,
+            carLightsFade: 0.4,
+            totalSideLightSticks: 20,
+            lightPairsPerRoadWay: 40,
+            shoulderLinesWidthPercentage: 0.05,
+            brokenLinesWidthPercentage: 0.1,
+            brokenLinesLengthPercentage: 0.5,
+            lightStickWidth: [0.12, 0.5],
+            lightStickHeight: [1.3, 1.7],
+            movingAwaySpeed: [60, 80],
+            movingCloserSpeed: [-120, -160],
+            carLightsLength: [400 * 0.03, 400 * 0.2],
+            carLightsRadius: [0.05, 0.14],
+            carWidthPercentage: [0.3, 0.5],
+            carShiftX: [-0.8, 0.8],
+            carFloorSeparation: [0, 5],
+            colors: {
+              roadColor: 0x080808,
+              islandColor: 0x0a0a0a,
+              background: 0x000000,
+              shoulderLines: 0xFFFFFF,
+              brokenLines: 0xFFFFFF,
+              leftCars: [0xD856BF, 0x6750A2, 0xC247AC],
+              rightCars: [0x03B3C3, 0x0E5EA5, 0x324555],
+              sticks: 0x03B3C3,
+            }
+          }}
+        />
 
         <div className="max-w-md w-full relative z-10">
           <div className="bg-gray-900 border border-green-500/50 p-8 text-center shadow-lg">
@@ -123,13 +160,47 @@ export default function Waitlist() {
   }
 
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center px-4 relative">
-      {/* Simple Background Elements */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute top-40 right-32 w-32 h-32 bg-purple-500/10"></div>
-        <div className="absolute bottom-20 left-20 w-24 h-24 bg-purple-600/15"></div>
-        <div className="absolute top-1/2 left-1/4 w-12 h-12 bg-purple-400/20"></div>
-      </div>
+    <div className="min-h-screen bg-black flex items-center justify-center px-4 relative overflow-hidden">
+      {/* Hyperspeed Background */}
+      <Hyperspeed
+        effectOptions={{
+          onSpeedUp: () => { },
+          onSlowDown: () => { },
+          distortion: 'turbulentDistortion',
+          length: 400,
+          roadWidth: 10,
+          islandWidth: 2,
+          lanesPerRoad: 4,
+          fov: 90,
+          fovSpeedUp: 150,
+          speedUp: 2,
+          carLightsFade: 0.4,
+          totalSideLightSticks: 20,
+          lightPairsPerRoadWay: 40,
+          shoulderLinesWidthPercentage: 0.05,
+          brokenLinesWidthPercentage: 0.1,
+          brokenLinesLengthPercentage: 0.5,
+          lightStickWidth: [0.12, 0.5],
+          lightStickHeight: [1.3, 1.7],
+          movingAwaySpeed: [60, 80],
+          movingCloserSpeed: [-120, -160],
+          carLightsLength: [400 * 0.03, 400 * 0.2],
+          carLightsRadius: [0.05, 0.14],
+          carWidthPercentage: [0.3, 0.5],
+          carShiftX: [-0.8, 0.8],
+          carFloorSeparation: [0, 5],
+          colors: {
+            roadColor: 0x080808,
+            islandColor: 0x0a0a0a,
+            background: 0x000000,
+            shoulderLines: 0xFFFFFF,
+            brokenLines: 0xFFFFFF,
+            leftCars: [0xD856BF, 0x6750A2, 0xC247AC],
+            rightCars: [0x03B3C3, 0x0E5EA5, 0x324555],
+            sticks: 0x03B3C3,
+          }
+        }}
+      />
 
       <div className="max-w-xl w-full relative z-10">
         {/* Header Section */}
@@ -142,17 +213,17 @@ export default function Waitlist() {
             Be among the first to experience AI-powered search that discovers content in the hidden corners of the internet
           </p>
           
-          {/* Simple Badge */}
+  
           <div className="inline-flex items-center px-4 py-2 bg-gray-900 border border-purple-500/50">
             <div className="w-1.5 h-1.5 bg-purple-400 mr-2"></div>
-            <span className="text-purple-300 font-medium text-sm">Limited Early Access Available</span>
+            <span className="text-purple-300 font-medium text-sm">into the unknown :)</span>
           </div>
         </div>
 
         {/* Main Form Card */}
-        <div className="bg-gray-900 border border-gray-700 p-6 md:p-8 shadow-lg">
+        <div className="bg-gray-900/70 backdrop-blur-sm border border-gray-700/50 p-6 md:p-8 shadow-lg">
           {error && (
-            <div className="mb-6 p-3 bg-red-900/50 border border-red-500 text-red-200">
+            <div className="mb-6 p-3 bg-red-900/60 backdrop-blur-sm border border-red-500 text-red-200">
               <div className="flex items-center">
                 <div className="w-3 h-3 bg-red-500 flex items-center justify-center mr-2">
                   <span className="text-white text-xs">!</span>
@@ -176,7 +247,7 @@ export default function Waitlist() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
-                  className="w-full px-3 py-2 bg-gray-800 border border-gray-600 focus:ring-1 focus:ring-purple-500 focus:border-purple-500 text-white placeholder-gray-400 transition-colors duration-300 text-sm"
+                  className="w-full px-3 py-2 bg-gray-800/60 backdrop-blur-sm border border-gray-600/50 focus:ring-1 focus:ring-purple-500 focus:border-purple-500 text-white placeholder-gray-400 transition-colors duration-300 text-sm"
                   placeholder="Enter your full name"
                 />
               </div>
@@ -192,7 +263,7 @@ export default function Waitlist() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  className="w-full px-3 py-2 bg-gray-800 border border-gray-600 focus:ring-1 focus:ring-purple-500 focus:border-purple-500 text-white placeholder-gray-400 transition-colors duration-300 text-sm"
+                  className="w-full px-3 py-2 bg-gray-800/60 backdrop-blur-sm border border-gray-600/50 focus:ring-1 focus:ring-purple-500 focus:border-purple-500 text-white placeholder-gray-400 transition-colors duration-300 text-sm"
                   placeholder="your@email.com"
                 />
               </div>
@@ -212,7 +283,7 @@ export default function Waitlist() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
-                    className="w-full px-3 py-2 bg-gray-800 border border-gray-600 focus:ring-1 focus:ring-purple-500 focus:border-purple-500 text-white placeholder-gray-400 pr-10 transition-colors duration-300 text-sm"
+                    className="w-full px-3 py-2 bg-gray-800/60 backdrop-blur-sm border border-gray-600/50 focus:ring-1 focus:ring-purple-500 focus:border-purple-500 text-white placeholder-gray-400 pr-10 transition-colors duration-300 text-sm"
                     placeholder="Create a password"
                   />
                   <button
@@ -229,7 +300,7 @@ export default function Waitlist() {
                       <span>Password strength</span>
                       <span className="capitalize text-purple-400">{passwordStrength.strength}</span>
                     </div>
-                    <div className="w-full bg-gray-700 h-1.5">
+                    <div className="w-full bg-gray-700/50 h-1.5">
                       <div 
                         className={`${passwordStrength.color} h-1.5 transition-all duration-500`}
                         style={{ width: passwordStrength.width }}
@@ -251,7 +322,7 @@ export default function Waitlist() {
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     required
-                    className="w-full px-3 py-2 bg-gray-800 border border-gray-600 focus:ring-1 focus:ring-purple-500 focus:border-purple-500 text-white placeholder-gray-400 pr-10 transition-colors duration-300 text-sm"
+                    className="w-full px-3 py-2 bg-gray-800/60 backdrop-blur-sm border border-gray-600/50 focus:ring-1 focus:ring-purple-500 focus:border-purple-500 text-white placeholder-gray-400 pr-10 transition-colors duration-300 text-sm"
                     placeholder="Confirm your password"
                   />
                   <button
@@ -292,29 +363,32 @@ export default function Waitlist() {
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 rows={2}
-                className="w-full px-3 py-2 bg-gray-800 border border-gray-600 focus:ring-1 focus:ring-purple-500 focus:border-purple-500 text-white placeholder-gray-400 transition-colors duration-300 resize-none text-sm"
-                placeholder="Tell us what excites you about AI-powered search..."
+                className="w-full px-3 py-2 bg-gray-800/60 backdrop-blur-sm border border-gray-600/50 focus:ring-1 focus:ring-purple-500 focus:border-purple-500 text-white placeholder-gray-400 transition-colors duration-300 resize-none text-sm"
+                placeholder="Tell us what excites you about Merg search..."
               />
             </div>
 
             {/* Submit Button */}
-            <button
+            <StarBorderButton
               type="submit"
               disabled={loading}
-              className="w-full bg-purple-500 hover:bg-purple-600 text-white font-bold py-3 px-6 transition-colors duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+              variant="primary"
+              size="lg"
+              className="w-full"
+              onClick={() => {}} // Form submission is handled by form onSubmit
             >
               {loading ? (
-                <div className="flex items-center justify-center">
-                  <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                <>
+                  <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent"></div>
                   <span>Joining waitlist...</span>
-                </div>
+                </>
               ) : (
-                <span className="flex items-center justify-center">
-                  <RocketLaunchIcon className="w-4 h-4 mr-2" />
-                  Join the Waitlist
-                </span>
+                <>
+                  <RocketLaunchIcon className="w-4 h-4" />
+                  <span>Join the Waitlist</span>
+                </>
               )}
-            </button>
+            </StarBorderButton>
           </form>
         </div>
 
