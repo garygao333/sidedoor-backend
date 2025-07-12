@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { MagnifyingGlassIcon, PlayIcon, BookOpenIcon, DocumentTextIcon, FireIcon, ChartBarIcon, ChevronLeftIcon, ChevronRightIcon, PlusIcon, HandThumbUpIcon, SparklesIcon, FunnelIcon, XMarkIcon, ClockIcon } from '@heroicons/react/24/outline'
 import Header from '../components/Header'
 import FadeContent from '../components/FadeContent'
@@ -12,7 +13,7 @@ import { youtubeService, YouTubeVideo } from '../services/youtubeService'
 interface MediaItem {
   id: string
   title: string
-  type: 'movie' | 'tv' | 'book' | 'article' | 'anime' | 'social' | 'instagram' | 'tiktok' | 'twitter' | 'youtube' | 'video'
+  type: 'movie' | 'tv' | 'book' | 'article' | 'anime' | 'social' | 'instagram' | 'tiktok' | 'twitter' | 'youtube' | 'video' | 'text-search'
   year?: number
   rating?: number
   poster?: string
@@ -360,232 +361,7 @@ const animeService = {
   }
 }
 
-// Mock Social Media Content (since APIs are restricted)
-const socialMediaService = {
-  getTrendingSocial(): MediaItem[] {
-    return [
-      {
-        id: 'social-1',
-        title: '#OpenSourceFilm trending: "Elephant Dreams"',
-        type: 'social',
-        poster: 'https://picsum.photos/400/300?random=1',
-        description: 'The community is buzzing about this groundbreaking open-source animated film. A must-watch for tech enthusiasts!',
-        platform: 'twitter',
-        trending: true,
-        category: 'Film',
-        height: 280
-      },
-      {
-        id: 'social-2',
-        title: 'Behind the scenes: Marvel CGI breakdown',
-        type: 'instagram',
-        poster: 'https://picsum.photos/400/500?random=2',
-        description: 'Instagram reel showing incredible VFX work behind the latest superhero blockbuster.',
-        platform: 'instagram',
-        trending: true,
-        category: 'Movies',
-        height: 450
-      },
-      {
-        id: 'social-3',
-        title: 'BookTok recommendations going viral',
-        type: 'tiktok',
-        poster: 'https://picsum.photos/400/600?random=3',
-        description: 'TikTok users are sharing their favorite fantasy books. The comment section is gold!',
-        platform: 'tiktok',
-        trending: true,
-        category: 'Books',
-        height: 500
-      },
-      {
-        id: 'social-4',
-        title: 'AI Film Analysis Thread',
-        type: 'twitter',
-        poster: 'https://picsum.photos/400/320?random=4',
-        description: 'Fascinating Twitter thread analyzing cinematography techniques in modern sci-fi films.',
-        platform: 'twitter',
-        category: 'Film Theory',
-        height: 300
-      },
-      {
-        id: 'social-5',
-        title: 'Anime studio tour on Instagram',
-        type: 'instagram',
-        poster: 'https://picsum.photos/400/450?random=5',
-        description: 'Rare behind-the-scenes look at how your favorite anime characters come to life.',
-        platform: 'instagram',
-        category: 'Anime',
-        height: 400
-      },
-      {
-        id: 'social-6',
-        title: 'Reading aesthetic setup',
-        type: 'tiktok',
-        poster: 'https://picsum.photos/400/550?random=6',
-        description: 'Cozy reading corner inspiration that will make you want to pick up a book right now.',
-        platform: 'tiktok',
-        category: 'Books',
-        height: 480
-      }
-    ]
-  },
 
-  searchSocial(query: string): MediaItem[] {
-    const all = this.getTrendingSocial()
-    if (!query.trim()) return all
-    
-    return all.filter(item => 
-      item.title.toLowerCase().includes(query.toLowerCase()) ||
-      item.description.toLowerCase().includes(query.toLowerCase()) ||
-      item.category?.toLowerCase().includes(query.toLowerCase())
-    )
-  }
-}
-
-// Mock trending X posts (hardcoded since Twitter API is expensive)
-const trendingPosts: MediaItem[] = [
-  {
-    id: 'tweet-1',
-    title: 'BREAKING: New AI model beats humans at film criticism',
-    type: 'twitter',
-    poster: 'https://picsum.photos/400/250?random=10',
-    description: 'Researchers develop AI that can analyze movies better than professional critics. Thread with examples ↓',
-    platform: 'twitter',
-    trending: true,
-    category: 'AI & Film',
-    year: 2024,
-    height: 250
-  },
-  {
-    id: 'tweet-2',
-    title: 'Studio Ghibli releases hand-drawn animation tutorial',
-    type: 'twitter',
-    poster: 'https://picsum.photos/400/280?random=11',
-    description: 'Master animators share their secrets in this comprehensive guide. The attention to detail is incredible!',
-    platform: 'twitter',
-    trending: true,
-    category: 'Animation',
-    year: 2024,
-    height: 280
-  },
-  {
-    id: 'tweet-3',
-    title: 'BookTuber creates 1000+ book review database',
-    type: 'twitter',
-    poster: 'https://picsum.photos/400/300?random=12',
-    description: 'Comprehensive database with ratings, summaries, and reading recommendations. Game changer for book lovers!',
-    platform: 'twitter',
-    category: 'Books',
-    year: 2024,
-    height: 300
-  }
-]
-
-// Mock data for books and articles (enhanced with heights for masonry)
-const mockBooksAndArticles: MediaItem[] = [
-  {
-    id: 'book-1',
-    title: 'The Three-Body Problem',
-    type: 'book',
-    year: 2023,
-    rating: 8.5,
-    poster: 'https://picsum.photos/400/600?random=20',
-    description: 'A hard science fiction novel that explores first contact with an alien civilization.',
-    trending: true,
-    category: 'Science Fiction',
-    height: 450
-  },
-  {
-    id: 'book-2',
-    title: 'Project Hail Mary',
-    type: 'book',
-    year: 2023,
-    rating: 8.7,
-    poster: 'https://picsum.photos/400/580?random=21',
-    description: 'A lone astronaut must save humanity in this thrilling science fiction novel.',
-    trending: false,
-    category: 'Science Fiction',
-    height: 420
-  },
-  {
-    id: 'book-3',
-    title: 'Atomic Habits',
-    type: 'book',
-    year: 2023,
-    rating: 8.4,
-    poster: 'https://picsum.photos/400/550?random=22',
-    description: 'An easy & proven way to build good habits & break bad ones.',
-    trending: false,
-    category: 'Self-Help',
-    height: 380
-  },
-  {
-    id: 'article-1',
-    title: 'GPT-4 Technical Report',
-    type: 'article',
-    year: 2023,
-    rating: 9.1,
-    poster: 'https://picsum.photos/400/300?random=23',
-    description: 'Technical report detailing the architecture and capabilities of GPT-4.',
-    trending: true,
-    category: 'Technology',
-    height: 280
-  },
-  {
-    id: 'article-2',
-    title: 'The Future of AI Research',
-    type: 'article',
-    year: 2024,
-    rating: 8.3,
-    poster: 'https://picsum.photos/400/320?random=24',
-    description: 'An in-depth look at emerging trends in artificial intelligence research.',
-    trending: false,
-    category: 'Technology',
-    height: 300
-  }
-]
-
-// Search Books and Articles function
-const searchBooksAndArticles = (query: string, filters: SearchFilters): MediaItem[] => {
-  if (!query.trim()) return []
-  
-  let results = mockBooksAndArticles.filter(item => 
-    item.title.toLowerCase().includes(query.toLowerCase()) ||
-    item.description.toLowerCase().includes(query.toLowerCase()) ||
-    item.category?.toLowerCase().includes(query.toLowerCase())
-  )
-  
-  // Apply filters
-  if (filters.type !== 'all') {
-    results = results.filter(item => item.type === filters.type)
-  }
-  
-  if (filters.rating) {
-    results = results.filter(item => item.rating && item.rating >= filters.rating!)
-  }
-  
-  if (filters.year) {
-    results = results.filter(item => item.year === filters.year)
-  }
-  
-  if (filters.genre) {
-    results = results.filter(item => item.category?.toLowerCase().includes(filters.genre!.toLowerCase()))
-  }
-  
-  // Sort results
-  switch (filters.sortBy) {
-    case 'rating':
-      results.sort((a, b) => (b.rating || 0) - (a.rating || 0))
-      break
-    case 'year':
-      results.sort((a, b) => (b.year || 0) - (a.year || 0))
-      break
-    default:
-      break
-  }
-  
-  return results
-}
 
 interface CarouselProps {
   title: string
@@ -725,16 +501,23 @@ function Carousel({ title, items, onItemClick, loading = false }: CarouselProps)
 
                 {/* Rating badge */}
                 {item.rating && (
-                  <div className="absolute top-2 right-2 bg-black/70 text-white px-2 py-1 rounded text-xs font-bold">
+                  <div className="absolute top-2 right-2 bg-black/30 backdrop-blur-sm text-white px-2 py-1 rounded text-xs font-bold border border-white/20">
                     ⭐ {item.rating}
                   </div>
                 )}
 
                 {/* Trending badge */}
                 {item.trending && (
-                  <div className="absolute top-2 left-2 bg-red-600 text-white px-2 py-1 rounded text-xs font-bold flex items-center gap-1">
+                  <div className="absolute top-2 left-2 bg-red-500/30 backdrop-blur-sm text-white px-2 py-1 rounded text-xs font-bold flex items-center gap-1 border border-red-400/30">
                     <FireIcon className="h-3 w-3" />
                     HOT
+                  </div>
+                )}
+
+                {/* Category badge */}
+                {item.category && (
+                  <div className="absolute bottom-2 left-2 bg-white/20 backdrop-blur-sm text-white px-2 py-1 rounded text-xs font-medium border border-white/30">
+                    {item.category}
                   </div>
                 )}
               </div>
@@ -742,12 +525,12 @@ function Carousel({ title, items, onItemClick, loading = false }: CarouselProps)
               {/* Content info */}
               <div className="p-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <div className="flex items-center gap-1 text-gray-400 text-xs">
+                  <div className="flex items-center gap-1 bg-gray-500/20 backdrop-blur-sm text-gray-200 text-xs px-2 py-1 rounded border border-gray-400/30">
                     {getIcon(item.type)}
                     <span className="capitalize">{item.type}</span>
                   </div>
                   {item.year && (
-                    <span className="text-gray-400 text-xs">{item.year}</span>
+                    <span className="bg-blue-500/20 backdrop-blur-sm text-blue-200 text-xs px-2 py-1 rounded border border-blue-400/30">{item.year}</span>
                   )}
                 </div>
                 
@@ -804,6 +587,7 @@ export default function DiscoverPage() {
   })
 
   const searchTimeoutRef = useRef<NodeJS.Timeout>()
+  const router = useRouter()
 
   // Featured item (first trending item)
   const featuredItem = trendingItems[0] || null
@@ -833,10 +617,11 @@ export default function DiscoverPage() {
 
     setSearchLoading(true)
     try {
-      const [tmdbResults, bookResults, animeResults, socialResults, suggestions] = await Promise.all([
+      const [tmdbResults, bookResults, animeResults, articleResults, socialResults, suggestions] = await Promise.all([
         tmdbService.searchMulti(query, filters),
         booksService.searchBooks(query),
         animeService.searchAnime(query),
+        articlesService.searchArticles(query),
         Promise.resolve(socialMediaService.searchSocial(query)),
         tmdbService.getSearchSuggestions(query)
       ])
@@ -845,6 +630,7 @@ export default function DiscoverPage() {
         ...tmdbResults,
         ...bookResults.slice(0, 10),
         ...animeResults.slice(0, 10),
+        ...articleResults.slice(0, 10),
         ...socialResults
       ]
       
@@ -852,9 +638,7 @@ export default function DiscoverPage() {
       setSearchSuggestions(suggestions)
     } catch (error) {
       console.error('Search error:', error)
-      // Fallback to mock data
-      const mockResults = searchBooksAndArticles(query, filters)
-      setSearchResults(mockResults)
+      setSearchResults([])
     } finally {
       setSearchLoading(false)
     }
@@ -942,60 +726,108 @@ export default function DiscoverPage() {
             social: [160, 200, 240, 280], // Smaller social posts
             twitter: [140, 180, 220, 260], // Smaller tweets
             youtube: [200, 250, 300, 350], // Smaller YouTube videos
-            video: [200, 250, 300, 350] // Smaller video content
+            video: [200, 250, 300, 350], // Smaller video content
+            'text-search': [180, 220, 260, 300] // Text search boxes
           }
           
           const heights = baseHeights[type as keyof typeof baseHeights] || [200, 250, 300, 350]
           return heights[index % heights.length] + Math.floor(Math.random() * 30) - 15 // Smaller randomness
         }
 
+        // Text-only search query boxes for AI agent
+        const textSearchQueries = [
+          {
+            id: 'text-search-1',
+            title: 'FIND ME THE #1 MOST TRENDING OPEN SOURCE FILM',
+            description: 'AI-powered search for trending open source movies',
+            type: 'text-search' as const,
+            height: generateHeight('text-search', 0)
+          },
+          {
+            id: 'text-search-2',
+            title: 'FIND ME A BOOK FOR MY AFTERNOON READ BASED ON MY PREFERENCES',
+            description: 'Personalized book recommendations',
+            type: 'text-search' as const,
+            height: generateHeight('text-search', 1)
+          },
+          {
+            id: 'text-search-3',
+            title: 'DISCOVER HIDDEN GEM INDIE FILMS FROM THE LAST 5 YEARS',
+            description: 'Uncover indie cinema treasures',
+            type: 'text-search' as const,
+            height: generateHeight('text-search', 2)
+          },
+          {
+            id: 'text-search-4',
+            title: 'RECOMMEND ME DOCUMENTARIES ABOUT AI AND TECHNOLOGY',
+            description: 'Deep dive into tech documentaries',
+            type: 'text-search' as const,
+            height: generateHeight('text-search', 3)
+          },
+          {
+            id: 'text-search-5',
+            title: 'FIND ANIME SIMILAR TO STUDIO GHIBLI BUT LESSER KNOWN',
+            description: 'Discover hidden anime gems',
+            type: 'text-search' as const,
+            height: generateHeight('text-search', 4)
+          },
+          {
+            id: 'text-search-6',
+            title: 'SEARCH FOR VIRAL TIKTOK VIDEOS ABOUT COOKING HACKS',
+            description: 'Trending culinary content',
+            type: 'text-search' as const,
+            height: generateHeight('text-search', 5)
+          }
+        ]
+
         // Combine all items for masonry layout with optimized heights
         const allItems = [
-          ...trending.map((item, index) => ({ 
+          ...trending.map((item: MediaItem, index: number) => ({ 
             ...item, 
             id: `trending-${item.id}`,
             height: generateHeight(item.type, index)
           })),
-          ...movies.map((item, index) => ({ 
+          ...movies.map((item: MediaItem, index: number) => ({ 
             ...item, 
             id: `movie-${item.id}`,
             height: generateHeight('movie', index)
           })),
-          ...tv.map((item, index) => ({ 
+          ...tv.map((item: MediaItem, index: number) => ({ 
             ...item, 
             id: `tv-${item.id}`,
             height: generateHeight('tv', index)
           })),
-          ...books.slice(0, 12).map((item, index) => ({ // More books for variety
+          ...books.slice(0, 12).map((item: MediaItem, index: number) => ({ // More books for variety
             ...item, 
             id: `books-${item.id}-${index}`,
             height: generateHeight('book', index)
           })),
-          ...articles.slice(0, 8).map((item, index) => ({ // More articles
+          ...articles.slice(0, 8).map((item: MediaItem, index: number) => ({ // More articles
             ...item, 
             id: `articles-${item.id}-${index}`,
             height: generateHeight('article', index)
           })),
-          ...anime.slice(0, 10).map((item, index) => ({ // More anime
+          ...anime.slice(0, 10).map((item: MediaItem, index: number) => ({ // More anime
             ...item, 
             id: `anime-main-${item.id}-${index}`,
             height: generateHeight('anime', index)
           })),
-          ...social.map((item, index) => ({ 
+          ...social.map((item: MediaItem, index: number) => ({ 
             ...item, 
             id: `social-${item.id}-${index}`,
             height: generateHeight('social', index)
           })),
-          ...youtubeMediaItems.map((item, index) => ({ 
+          ...youtubeMediaItems.map((item: MediaItem, index: number) => ({ 
             ...item, 
             id: `youtube-${item.id}-${index}`,
             height: generateHeight('youtube', index)
           })),
-          ...trendingPosts.map((item, index) => ({ 
+          ...trendingPosts.map((item: MediaItem, index: number) => ({ 
             ...item, 
             id: `trending-post-${item.id}-${index}`,
             height: generateHeight('twitter', index)
-          }))
+          })),
+          ...textSearchQueries
         ]
         
         // Shuffle array for more interesting layout
@@ -1005,21 +837,15 @@ export default function DiscoverPage() {
       } catch (error) {
         console.error('Error fetching data:', error)
         // Fallback to mock data if APIs fail
-        setBookItems(mockBooksAndArticles.filter(item => item.type === 'book'))
-        setArticleItems(mockBooksAndArticles.filter(item => item.type === 'article'))
         setSocialItems(socialMediaService.getTrendingSocial())
         
         // Create fallback masonry items with unique IDs
         const fallbackItems = [
-          ...mockBooksAndArticles.map((item, index) => ({ 
-            ...item, 
-            id: `fallback-${item.id}-${index}` 
-          })),
-          ...socialMediaService.getTrendingSocial().map((item, index) => ({ 
+          ...socialMediaService.getTrendingSocial().map((item: MediaItem, index: number) => ({ 
             ...item, 
             id: `fallback-social-${item.id}-${index}` 
           })),
-          ...trendingPosts.map((item, index) => ({ 
+          ...trendingPosts.map((item: MediaItem, index: number) => ({ 
             ...item, 
             id: `fallback-trending-${item.id}-${index}` 
           }))
@@ -1033,9 +859,20 @@ export default function DiscoverPage() {
     fetchData()
   }, [])
 
-  const handleSearch = (item: MediaItem) => {
-    const searchTerm = `${item.title} ${item.year || ''} ${item.type === 'movie' ? '1080p' : ''}`
-    window.location.href = `/?q=${encodeURIComponent(searchTerm)}`
+  const handleSearch = (item: MediaItem | { title: string; description: string; type: 'text-search' }) => {
+    let searchTerm: string
+    
+    if (item.type === 'text-search') {
+      // For text-only search boxes, use the title as the search query
+      searchTerm = item.title
+    } else {
+      // For media items, create a descriptive search query
+      const mediaItem = item as MediaItem
+      searchTerm = `Find me ${mediaItem.title}${mediaItem.year ? ` from ${mediaItem.year}` : ''}${mediaItem.type === 'movie' ? ' movie' : mediaItem.type === 'tv' ? ' TV show' : ` ${mediaItem.type}`}`
+    }
+    
+    // Navigate to chat page with the search query as URL parameter
+    router.push(`/chat?q=${encodeURIComponent(searchTerm)}`)
   }
 
   const clearSearch = () => {
@@ -1143,3 +980,124 @@ export default function DiscoverPage() {
     </div>
   )
 }
+
+// Mock Social Media Content (since APIs are restricted)
+const socialMediaService = {
+  getTrendingSocial(): MediaItem[] {
+    return [
+      {
+        id: 'social-1',
+        title: '#OpenSourceFilm trending: "Elephant Dreams"',
+        type: 'social',
+        poster: 'https://picsum.photos/400/300?random=1',
+        description: 'The community is buzzing about this groundbreaking open-source animated film. A must-watch for tech enthusiasts!',
+        platform: 'twitter',
+        trending: true,
+        category: 'Film',
+        height: 280
+      },
+      {
+        id: 'social-2',
+        title: 'Behind the scenes: Marvel CGI breakdown',
+        type: 'instagram',
+        poster: 'https://picsum.photos/400/500?random=2',
+        description: 'Instagram reel showing incredible VFX work behind the latest superhero blockbuster.',
+        platform: 'instagram',
+        trending: true,
+        category: 'Movies',
+        height: 450
+      },
+      {
+        id: 'social-3',
+        title: 'BookTok recommendations going viral',
+        type: 'tiktok',
+        poster: 'https://picsum.photos/400/600?random=3',
+        description: 'TikTok users are sharing their favorite fantasy books. The comment section is gold!',
+        platform: 'tiktok',
+        trending: true,
+        category: 'Books',
+        height: 500
+      },
+      {
+        id: 'social-4',
+        title: 'AI Film Analysis Thread',
+        type: 'twitter',
+        poster: 'https://picsum.photos/400/320?random=4',
+        description: 'Fascinating Twitter thread analyzing cinematography techniques in modern sci-fi films.',
+        platform: 'twitter',
+        category: 'Film Theory',
+        height: 300
+      },
+      {
+        id: 'social-5',
+        title: 'Anime studio tour on Instagram',
+        type: 'instagram',
+        poster: 'https://picsum.photos/400/450?random=5',
+        description: 'Rare behind-the-scenes look at how your favorite anime characters come to life.',
+        platform: 'instagram',
+        category: 'Anime',
+        height: 400
+      },
+      {
+        id: 'social-6',
+        title: 'Reading aesthetic setup',
+        type: 'tiktok',
+        poster: 'https://picsum.photos/400/550?random=6',
+        description: 'Cozy reading corner inspiration that will make you want to pick up a book right now.',
+        platform: 'tiktok',
+        category: 'Books',
+        height: 480
+      }
+    ]
+  },
+
+  searchSocial(query: string): MediaItem[] {
+    const all = this.getTrendingSocial()
+    if (!query.trim()) return all
+    
+    return all.filter(item => 
+      item.title.toLowerCase().includes(query.toLowerCase()) ||
+      item.description.toLowerCase().includes(query.toLowerCase()) ||
+      item.category?.toLowerCase().includes(query.toLowerCase())
+    )
+  }
+}
+
+// Mock trending X posts (hardcoded since Twitter API is expensive)
+const trendingPosts: MediaItem[] = [
+  {
+    id: 'tweet-1',
+    title: 'BREAKING: New AI model beats humans at film criticism',
+    type: 'twitter',
+    poster: 'https://picsum.photos/400/250?random=10',
+    description: 'Researchers develop AI that can analyze movies better than professional critics. Thread with examples ↓',
+    platform: 'twitter',
+    trending: true,
+    category: 'AI & Film',
+    year: 2024,
+    height: 250
+  },
+  {
+    id: 'tweet-2',
+    title: 'Studio Ghibli releases hand-drawn animation tutorial',
+    type: 'twitter',
+    poster: 'https://picsum.photos/400/280?random=11',
+    description: 'Master animators share their secrets in this comprehensive guide. The attention to detail is incredible!',
+    platform: 'twitter',
+    trending: true,
+    category: 'Animation',
+    year: 2024,
+    height: 280
+  },
+  {
+    id: 'tweet-3',
+    title: 'BookTuber creates 1000+ book review database',
+    type: 'twitter',
+    poster: 'https://picsum.photos/400/300?random=12',
+    description: 'Comprehensive database with ratings, summaries, and reading recommendations. Game changer for book lovers!',
+    platform: 'twitter',
+    category: 'Books',
+    year: 2024,
+    height: 300
+  }
+]

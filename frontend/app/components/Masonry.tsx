@@ -99,24 +99,26 @@ export default function Masonry({
       case 'twitter': return '🐦'
       case 'youtube': return '📺'
       case 'video': return '📺'
+      case 'text-search': return '🔍'
       default: return '🎯'
     }
   }
 
   const getTypeColor = (type?: string) => {
     switch (type) {
-      case 'movie': return 'bg-red-600'
-      case 'tv': return 'bg-blue-600'
-      case 'book': return 'bg-green-600'
-      case 'article': return 'bg-purple-600'
-      case 'anime': return 'bg-pink-600'
-      case 'social': return 'bg-indigo-600'
-      case 'instagram': return 'bg-gradient-to-br from-purple-600 to-pink-600'
-      case 'tiktok': return 'bg-black'
-      case 'twitter': return 'bg-blue-500'
-      case 'youtube': return 'bg-red-600'
-      case 'video': return 'bg-red-600'
-      default: return 'bg-gray-600'
+      case 'movie': return 'bg-red-600/30 backdrop-blur-sm border border-red-400/30'
+      case 'tv': return 'bg-blue-600/30 backdrop-blur-sm border border-blue-400/30'
+      case 'book': return 'bg-green-600/30 backdrop-blur-sm border border-green-400/30'
+      case 'article': return 'bg-purple-600/30 backdrop-blur-sm border border-purple-400/30'
+      case 'anime': return 'bg-pink-600/30 backdrop-blur-sm border border-pink-400/30'
+      case 'social': return 'bg-indigo-600/30 backdrop-blur-sm border border-indigo-400/30'
+      case 'instagram': return 'bg-gradient-to-br from-purple-600/30 to-pink-600/30 backdrop-blur-sm border border-purple-400/30'
+      case 'tiktok': return 'bg-black/30 backdrop-blur-sm border border-gray-400/30'
+      case 'twitter': return 'bg-blue-500/30 backdrop-blur-sm border border-blue-400/30'
+      case 'youtube': return 'bg-red-600/30 backdrop-blur-sm border border-red-400/30'
+      case 'video': return 'bg-red-600/30 backdrop-blur-sm border border-red-400/30'
+      case 'text-search': return 'bg-purple-600/30 backdrop-blur-sm border border-purple-400/30'
+      default: return 'bg-gray-600/30 backdrop-blur-sm border border-gray-400/30'
     }
   }
 
@@ -125,12 +127,63 @@ export default function Masonry({
       ref={containerRef}
       className="px-4 lg:px-12"
       style={{ 
-        columns: 6, // Increased from 4 to 6 for smaller cards
-        columnGap: '0.75rem', // Smaller gap
+        columns: 5, // Increased from 4 to 6 for smaller cards
+        columnGap: '0.6rem', // Smaller gap
         columnFill: 'balance'
       }}
     >
       {items.map((item, index) => {
+        // Handle text-search items with special layout
+        if (item.type === 'text-search') {
+          return (
+            <div
+              key={item.id}
+              className="masonry-item relative rounded-xl overflow-hidden cursor-pointer group transform transition-all duration-300 mb-4 break-inside-avoid hover:scale-[0.98] bg-black/20 backdrop-blur-md border border-white/20"
+              style={{ 
+                height: `${item.height}px`,
+                display: 'inline-block',
+                width: '100%'
+              }}
+              onClick={() => handleItemClick(item)}
+            >
+              {/* Background pattern */}
+              <div className="absolute inset-0 opacity-20">
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.1),transparent)]"></div>
+                <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full transform translate-x-10 -translate-y-10"></div>
+                <div className="absolute bottom-0 left-0 w-16 h-16 bg-white/5 rounded-full transform -translate-x-8 translate-y-8"></div>
+              </div>
+
+              {/* Content */}
+              <div className="absolute inset-0 p-6 flex flex-col justify-center items-center text-center">
+                {/* AI Search Icon */}
+                <div className="mb-4 w-12 h-12 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center border border-white/30">
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+
+                {/* Search Text */}
+                <h3 className="text-white font-bold text-lg leading-tight mb-3 px-2">
+                  {item.title}
+                </h3>
+
+                {/* Description */}
+                <p className="text-gray-200 text-sm opacity-80 mb-4">
+                  {item.description}
+                </p>
+
+                {/* Search Button */}
+                <button className="bg-white/20 backdrop-blur-sm text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-white/30 transition-colors opacity-0 group-hover:opacity-100 transform translate-y-2 group-hover:translate-y-0 transition-all duration-300 border border-white/30">
+                  🔍 Search with AI
+                </button>
+              </div>
+
+              {/* Hover overlay */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            </div>
+          )
+        }
+
         // Render YouTube video card if it's a YouTube video
         if (item.type === 'youtube' || item.type === 'video' || item.youtubeData) {
           const videoData: YouTubeVideo = item.youtubeData || {
@@ -231,7 +284,7 @@ export default function Masonry({
                 )}
                 
                 {item.rating && (
-                  <div className="bg-black/70 text-white px-2 py-1 rounded-lg text-xs font-bold">
+                  <div className="bg-black/30 backdrop-blur-sm text-white px-2 py-1 rounded-lg text-xs font-bold border border-white/20">
                     ⭐ {item.rating}
                   </div>
                 )}
@@ -263,11 +316,8 @@ export default function Masonry({
 
                 {/* Hover actions */}
                 <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                  <button className="bg-white text-black px-3 py-1 rounded-lg text-xs font-semibold hover:bg-gray-200 transition-colors">
-                    View
-                  </button>
-                  <button className="bg-white/20 text-white px-3 py-1 rounded-lg text-xs font-semibold hover:bg-white/30 transition-colors">
-                    Save
+                  <button className="bg-white text-black px-3 py-1 rounded-lg text-xs font-semibold hover:bg-gray-200 transition-colors flex items-center gap-1">
+                    🔍 Search
                   </button>
                 </div>
               </div>

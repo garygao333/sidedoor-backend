@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import ChatInterface from '../components/ChatInterface'
 import ChatSearchBar from '../components/ChatSearchBar'
 import MediaPlayer from '../components/MediaPlayer'
@@ -28,6 +28,7 @@ export default function ChatPage() {
   const [mediaUrl, setMediaUrl] = useState('')
   const { user, addSearchHistory, logout } = useAuth()
   const router = useRouter()
+  const searchParams = useSearchParams()
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -36,7 +37,7 @@ export default function ChatPage() {
     }
   }, [user, router])
 
-  const handleSearch = async (searchQuery: string) => {
+  const handleSearch = useCallback(async (searchQuery: string) => {
     if (!searchQuery.trim()) return
 
     // Check if the query is "test" and show media player
@@ -79,7 +80,7 @@ export default function ChatPage() {
       console.error('Search error:', error)
       setIsSearching(false)
     }
-  }
+  }, [addSearchHistory])
 
   const handleLogout = async () => {
     try {
@@ -89,6 +90,14 @@ export default function ChatPage() {
       console.error('Logout error:', error)
     }
   }
+
+  // Handle query parameter from discover page
+  useEffect(() => {
+    const queryFromUrl = searchParams.get('q')
+    if (queryFromUrl && user) {
+      handleSearch(queryFromUrl)
+    }
+  }, [searchParams, user, handleSearch])
 
   const handleNewChat = () => {
     setCurrentQuery('')
