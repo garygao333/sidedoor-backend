@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import ChatInterface from '../components/ChatInterface'
 import ChatSearchBar from '../components/ChatSearchBar'
 import MediaPlayer from '../components/MediaPlayer'
+import StarBorderButton from '../components/StarBorderButton'
 import Link from 'next/link'
 import Image from 'next/image'
 import { 
@@ -112,19 +113,19 @@ export default function ChatPage() {
   // Show loading while checking authentication
   if (!user) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="text-gray-300 text-xl">Loading...</div>
+      <div className="min-h-screen bg-black/95 flex items-center justify-center">
+        <div className="text-purple-300 text-xl">Loading...</div>
       </div>
     )
   }
 
   return (
-    <div className="flex h-screen bg-gray-900">
+    <div className="flex h-screen bg-black/95">
       {/* Sidebar */}
-      <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-gray-800 border-r border-gray-700 transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0`}>
+      <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-purple-900/30 backdrop-blur-sm border-r border-purple-500/30 transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0`}>
         <div className="flex flex-col h-full">
           {/* Logo and New Chat */}
-          <div className="p-3 border-b border-gray-700">
+          <div className="p-3 border-b border-purple-500/30">
             <Link href="/" className="flex items-center space-x-2 mb-3 px-2">
               <Image 
                 src="/logo1.png" 
@@ -133,29 +134,30 @@ export default function ChatPage() {
                 height={20} 
                 className="w-5 h-5"
               />
-              <span className="text-lg font-semibold bg-gradient-to-r from-purple-400 to-purple-500 bg-clip-text text-transparent">
+              <span className="text-lg font-semibold text-purple-300">
                 Merg
               </span>
             </Link>
             
-            <button
+            <StarBorderButton
               onClick={handleNewChat}
-              className="flex items-center space-x-2 w-full px-3 py-2.5 text-sm text-gray-200 bg-gray-700 border border-gray-600 rounded-md hover:bg-gray-600 transition-colors"
+              size="sm"
+              className="w-full"
             >
               <PlusIcon className="h-4 w-4" />
               <span>New Search</span>
-            </button>
+            </StarBorderButton>
           </div>
 
           {/* Recent Chats Section */}
           <div className="flex-1 overflow-y-auto">
             <div className="p-3">
-              <div className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2 px-2">
+              <div className="text-xs font-medium text-purple-400 uppercase tracking-wider mb-2 px-2">
                 Recent
               </div>
               {/* You can add recent chat history here */}
               <div className="space-y-1">
-                <div className="px-2 py-2 text-sm text-gray-300 hover:bg-gray-700 rounded-md cursor-pointer">
+                <div className="px-2 py-2 text-sm text-purple-300 hover:bg-purple-800/20 rounded-md cursor-pointer">
                   Previous search media...
                 </div>
               </div>
@@ -163,19 +165,19 @@ export default function ChatPage() {
           </div>
 
           {/* Navigation and User Section */}
-          <div className="border-t border-gray-700">
+          <div className="border-t border-purple-500/30">
             <div className="p-3">
               <nav className="space-y-1 mb-3">
                 <Link
                   href="/"
-                  className="flex items-center space-x-3 px-2 py-2 text-sm text-gray-200 hover:bg-gray-700 rounded-md transition-colors"
+                  className="flex items-center space-x-3 px-2 py-2 text-sm text-purple-200 hover:bg-purple-800/20 rounded-md transition-colors"
                 >
                   <HomeIcon className="h-4 w-4" />
                   <span>Home</span>
                 </Link>
                 <Link
                   href="/discover"
-                  className="flex items-center space-x-3 px-2 py-2 text-sm text-gray-200 hover:bg-gray-700 rounded-md transition-colors"
+                  className="flex items-center space-x-3 px-2 py-2 text-sm text-purple-200 hover:bg-purple-800/20 rounded-md transition-colors"
                 >
                   <MagnifyingGlassIcon className="h-4 w-4" />
                   <span>Discover</span>
@@ -183,18 +185,18 @@ export default function ChatPage() {
               </nav>
               
               {/* User Section */}
-              <div className="border-t border-gray-700 pt-3">
+              <div className="border-t border-purple-500/30 pt-3">
                 <div className="flex items-center space-x-3 px-2 py-2 mb-2">
                   <div className="w-6 h-6 bg-purple-600 rounded-full flex items-center justify-center">
                     <span className="text-xs font-medium text-white">
                       {user.email?.[0]?.toUpperCase()}
                     </span>
                   </div>
-                  <span className="text-sm text-gray-200 truncate flex-1">{user.email}</span>
+                  <span className="text-sm text-purple-200 truncate flex-1">{user.email}</span>
                 </div>
                 <button
                   onClick={handleLogout}
-                  className="flex items-center space-x-2 w-full px-2 py-2 text-sm text-gray-200 hover:bg-gray-700 rounded-md transition-colors"
+                  className="flex items-center space-x-2 w-full px-2 py-2 text-sm text-purple-200 hover:bg-purple-800/20 rounded-md transition-colors"
                 >
                   <ArrowRightOnRectangleIcon className="h-4 w-4" />
                   <span>Logout</span>
@@ -208,28 +210,28 @@ export default function ChatPage() {
       {/* Mobile menu button */}
       <button
         onClick={() => setSidebarOpen(!sidebarOpen)}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-gray-800 border border-gray-600 rounded-lg shadow-sm"
+        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-purple-900/30 border border-purple-500/30 rounded-lg shadow-sm backdrop-blur-sm"
       >
         {sidebarOpen ? (
-          <XMarkIcon className="h-5 w-5 text-gray-200" />
+          <XMarkIcon className="h-5 w-5 text-purple-200" />
         ) : (
-          <Bars3Icon className="h-5 w-5 text-gray-200" />
+          <Bars3Icon className="h-5 w-5 text-purple-200" />
         )}
       </button>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col lg:ml-0">
+      <div className="flex-1 flex flex-col lg:ml-0 min-h-0">
         {/* Chat Area */}
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col min-h-0">
           {!isSearching && !currentJobId && !showMediaPlayer ? (
-            /* Welcome Screen - Claude-like */
-            <div className="flex-1 flex items-center justify-center p-8 bg-gray-900">
+            /* Welcome Screen */
+            <div className="flex-1 flex items-center justify-center p-8 bg-black/95">
               <div className="max-w-2xl w-full">
                 <div className="text-center mb-8">
-                  <h1 className="text-3xl font-medium text-white mb-2">
+                  <h1 className="text-3xl font-medium text-purple-100 mb-2">
                     How can I help you today?
                   </h1>
-                  <p className="text-gray-300">
+                  <p className="text-purple-300">
                     Ask me to search the hidden corners of the internet using AI-powered deep search
                   </p>
                 </div>
@@ -245,85 +247,93 @@ export default function ChatPage() {
                 
                 {/* Example prompts */}
                 <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <button
+                  <StarBorderButton
                     onClick={() => handleSearch("test")}
-                    className="p-4 text-left border border-gray-600 bg-gray-800 rounded-lg hover:border-gray-500 hover:bg-gray-750 transition-all"
+                    variant="secondary"
+                    className="!bg-purple-900/20 !text-purple-200 !border-purple-500/40 hover:!bg-purple-800/30 hover:!border-purple-400/60 text-left p-4 h-auto flex-col items-start space-y-1"
                   >
-                    <div className="font-medium text-white mb-1">Try media player</div>
-                    <div className="text-sm text-gray-400">Type "test" to see a demo video</div>
-                  </button>
-                  <button
+                    <div className="font-medium text-purple-100">Try media player</div>
+                    <div className="text-sm text-purple-400">Type "test" to see a demo video</div>
+                  </StarBorderButton>
+                  <StarBorderButton
                     onClick={() => handleSearch("Latest AI research papers")}
-                    className="p-4 text-left border border-gray-600 bg-gray-800 rounded-lg hover:border-gray-500 hover:bg-gray-750 transition-all"
+                    variant="secondary"
+                    className="!bg-purple-900/20 !text-purple-200 !border-purple-500/40 hover:!bg-purple-800/30 hover:!border-purple-400/60 text-left p-4 h-auto flex-col items-start space-y-1"
                   >
-                    <div className="font-medium text-white mb-1">Latest AI research papers</div>
-                    <div className="text-sm text-gray-400">Find cutting-edge research publications</div>
-                  </button>
-                  <button
+                    <div className="font-medium text-purple-100">Latest AI research papers</div>
+                    <div className="text-sm text-purple-400">Find cutting-edge research publications</div>
+                  </StarBorderButton>
+                  <StarBorderButton
                     onClick={() => handleSearch("Open source alternatives to popular software")}
-                    className="p-4 text-left border border-gray-600 bg-gray-800 rounded-lg hover:border-gray-500 hover:bg-gray-750 transition-all"
+                    variant="secondary"
+                    className="!bg-purple-900/20 !text-purple-200 !border-purple-500/40 hover:!bg-purple-800/30 hover:!border-purple-400/60 text-left p-4 h-auto flex-col items-start space-y-1"
                   >
-                    <div className="font-medium text-white mb-1">Open source alternatives</div>
-                    <div className="text-sm text-gray-400">Discover free software alternatives</div>
-                  </button>
-                  <button
+                    <div className="font-medium text-purple-100">Open source alternatives</div>
+                    <div className="text-sm text-purple-400">Discover free software alternatives</div>
+                  </StarBorderButton>
+                  <StarBorderButton
                     onClick={() => handleSearch("Best practices for web development 2025")}
-                    className="p-4 text-left border border-gray-600 bg-gray-800 rounded-lg hover:border-gray-500 hover:bg-gray-750 transition-all"
+                    variant="secondary"
+                    className="!bg-purple-900/20 !text-purple-200 !border-purple-500/40 hover:!bg-purple-800/30 hover:!border-purple-400/60 text-left p-4 h-auto flex-col items-start space-y-1"
                   >
-                    <div className="font-medium text-white mb-1">Web development best practices</div>
-                    <div className="text-sm text-gray-400">Learn modern development techniques</div>
-                  </button>
+                    <div className="font-medium text-purple-100">Web development best practices</div>
+                    <div className="text-sm text-purple-400">Learn modern development techniques</div>
+                  </StarBorderButton>
                 </div>
               </div>
             </div>
           ) : showMediaPlayer ? (
             /* Media Player Interface */
-            <div className="flex-1 flex flex-col p-6 bg-gray-900">
-              <div className="max-w-4xl mx-auto w-full">
-                {/* Chat message showing the query */}
-                <div className="mb-6">
-                  <div className="flex items-start space-x-3">
-                    <div className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
-                      <span className="text-white text-sm font-medium">
-                        {user.email?.[0]?.toUpperCase()}
-                      </span>
-                    </div>
-                    <div className="bg-gray-800 rounded-lg p-3 max-w-xs">
-                      <p className="text-white">{currentQuery}</p>
+            <div className="flex-1 flex flex-col min-h-0 relative">
+              <div className="flex-1 overflow-y-auto p-6 bg-black/95 pb-24">
+                <div className="max-w-4xl mx-auto w-full">
+                  {/* Chat message showing the query */}
+                  <div className="mb-6">
+                    <div className="flex items-start space-x-3">
+                      <div className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+                        <span className="text-white text-sm font-medium">
+                          {user.email?.[0]?.toUpperCase()}
+                        </span>
+                      </div>
+                      <div className="bg-purple-900/30 border border-purple-500/30 rounded-lg p-3 max-w-xs">
+                        <p className="text-purple-100">{currentQuery}</p>
+                      </div>
                     </div>
                   </div>
-                </div>
-                
-                {/* AI Response with Media Player */}
-                <div className="flex items-start space-x-3 mb-6">
-                  <div className="w-8 h-8 bg-gray-700 rounded-full flex items-center justify-center flex-shrink-0">
-                    <span className="text-purple-400 text-sm">🤖</span>
-                  </div>
-                  <div className="flex-1">
-                    <div className="bg-gray-800 rounded-lg p-3 mb-3">
-                      <p className="text-white">I found a great video for you! Here it is:</p>
+                  
+                  {/* AI Response with Media Player */}
+                  <div className="flex items-start space-x-3 mb-6">
+                    <div className="w-8 h-8 bg-purple-800/50 rounded-full flex items-center justify-center flex-shrink-0">
+                      <span className="text-purple-300 text-sm">🤖</span>
                     </div>
-                    <MediaPlayer 
-                      url={mediaUrl}
-                      title="Test Video"
-                    />
+                    <div className="flex-1">
+                      <div className="bg-purple-900/30 border border-purple-500/30 rounded-lg p-3 mb-3">
+                        <p className="text-purple-100">I found a great video for you! Here it is:</p>
+                      </div>
+                      <MediaPlayer 
+                        url={mediaUrl}
+                        title="Test Video"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
               
-              {/* Fixed bottom search bar for new messages */}
-              <div className="border-t border-gray-700 bg-gray-900 mt-auto">
-                <ChatSearchBar 
-                  onSearch={handleSearch}
-                  isSearching={isSearching}
-                  placeholder="Ask a follow-up..."
-                />
+              {/* Floating search bar */}
+              <div className="absolute bottom-4 left-4 right-4 max-w-xl mx-auto">
+                <div className="bg-purple-900/40 backdrop-blur-md border border-purple-500/30 rounded-lg p-2 shadow-2xl">
+                  <ChatSearchBar 
+                    onSearch={handleSearch}
+                    isSearching={isSearching}
+                    placeholder="Ask a follow-up..."
+                  />
+                </div>
               </div>
             </div>
           ) : (
             /* Chat Interface */
-            <div className="flex-1 flex flex-col">
-              <div className="flex-1 overflow-hidden">
+            <div className="flex-1 flex flex-col min-h-0 relative">
+              <div className="flex-1 overflow-hidden pb-16">
                 <ChatInterface
                   jobId={currentJobId}
                   query={currentQuery}
@@ -332,13 +342,15 @@ export default function ChatPage() {
                 />
               </div>
               
-              {/* Fixed bottom search bar for new messages */}
-              <div className="border-t border-gray-700 bg-gray-900">
-                <ChatSearchBar 
-                  onSearch={handleSearch}
-                  isSearching={isSearching}
-                  placeholder="Ask a follow-up..."
-                />
+              {/* Floating search bar */}
+              <div className="absolute bottom-4 left-4 right-4 max-w-xl mx-auto">
+                <div className="bg-purple-900/40 backdrop-blur-md border border-purple-500/30 rounded-lg p-2 shadow-2xl">
+                  <ChatSearchBar 
+                    onSearch={handleSearch}
+                    isSearching={isSearching}
+                    placeholder="Ask a follow-up..."
+                  />
+                </div>
               </div>
             </div>
           )}
@@ -348,7 +360,7 @@ export default function ChatPage() {
       {/* Overlay for mobile sidebar */}
       {sidebarOpen && (
         <div
-          className="lg:hidden fixed inset-0 z-40 bg-black bg-opacity-25"
+          className="lg:hidden fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
           onClick={() => setSidebarOpen(false)}
         />
       )}

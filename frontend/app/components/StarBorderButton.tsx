@@ -29,8 +29,8 @@ export default function StarBorderButton({
   }
 
   const variantClasses = {
-    primary: 'bg-transparent border-2 border-purple-500 text-purple-300 hover:border-purple-400 hover:text-purple-200',
-    secondary: 'bg-white text-purple-600 border-2 border-purple-300 hover:bg-purple-50 hover:border-purple-400'
+    primary: 'bg-transparent border-2 border-purple-500 text-purple-300 hover:border-purple-400 hover:text-purple-200 hover:bg-purple-900/20',
+    secondary: 'bg-purple-900/10 text-purple-200 border-2 border-purple-500/50 hover:bg-purple-800/20 hover:border-purple-400'
   }
 
   return (
@@ -58,7 +58,7 @@ export default function StarBorderButton({
       {/* Shimmer effect */}
       <div 
         className={`
-          absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent
+          absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-purple-300/20 to-transparent
           transition-transform duration-1000 ease-out
           ${isHovered && !disabled ? 'translate-x-full' : ''}
         `}
