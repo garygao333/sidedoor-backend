@@ -36,6 +36,7 @@ interface MasonryProps {
   blurToFocus?: boolean
   colorShiftOnHover?: boolean
   columns?: number
+  onItemClick?: (item: MasonryItem) => void
 }
 
 export default function Masonry({
@@ -48,7 +49,8 @@ export default function Masonry({
   hoverScale = 0.95,
   blurToFocus = true,
   colorShiftOnHover = false,
-  columns = 4
+  columns = 4,
+  onItemClick
 }: MasonryProps) {
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -79,6 +81,17 @@ export default function Masonry({
   }, [items, ease, duration, stagger, animateFrom])
 
   const handleItemClick = (item: MasonryItem) => {
+    console.log('Masonry handleItemClick called with item:', item)
+    
+    // Use the provided onItemClick handler if available
+    if (onItemClick) {
+      console.log('Using provided onItemClick handler')
+      onItemClick(item)
+      return
+    }
+
+    console.log('Using fallback behavior')
+    // Fallback to default behavior
     if (item.url) {
       window.open(item.url, '_blank')
     } else if (item.videoId) {
@@ -173,7 +186,13 @@ export default function Masonry({
                 </p>
 
                 {/* Search Button */}
-                <button className="bg-white/20 backdrop-blur-sm text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-white/30 transition-colors opacity-0 group-hover:opacity-100 transform translate-y-2 group-hover:translate-y-0 transition-all duration-300 border border-white/30">
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleItemClick(item)
+                  }}
+                  className="bg-white/20 backdrop-blur-sm text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-white/30 transition-colors opacity-0 group-hover:opacity-100 transform translate-y-2 group-hover:translate-y-0 transition-all duration-300 border border-white/30"
+                >
                   🔍 Search with AI
                 </button>
               </div>
@@ -316,7 +335,13 @@ export default function Masonry({
 
                 {/* Hover actions */}
                 <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                  <button className="bg-white text-black px-3 py-1 rounded-lg text-xs font-semibold hover:bg-gray-200 transition-colors flex items-center gap-1">
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleItemClick(item)
+                    }}
+                    className="bg-white text-black px-3 py-1 rounded-lg text-xs font-semibold hover:bg-gray-200 transition-colors flex items-center gap-1"
+                  >
                     🔍 Search
                   </button>
                 </div>

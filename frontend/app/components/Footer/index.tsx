@@ -9,7 +9,7 @@ import FadeContent from '../FadeContent'
 
 export default function Footer() {
   return (
-    <footer className="bg-gray-900 border-t border-gray-800">
+    <footer className="bg-black border-t border-gray-700">
       
       {/* Main Footer */}
       <div className="px-4 py-16">
@@ -26,11 +26,11 @@ export default function Footer() {
                     height={32} 
                     className="w-8 h-8"
                   />
-                  <span className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-purple-600 bg-clip-text text-transparent">
+                  <span className="text-2xl font-bold text-white">
                     Merg
                   </span>
                 </div>
-                <p className="text-gray-400 text-lg mb-6 max-w-md leading-relaxed">
+                <p className="text-gray-300 text-lg mb-6 max-w-md leading-relaxed">
                   AI-powered deep search that finds content across hidden corners of the internet using intelligent agents.
                 </p>
                 <SocialLinks />
@@ -41,22 +41,22 @@ export default function Footer() {
                 <h3 className="text-white font-semibold text-lg mb-4">Product</h3>
                 <ul className="space-y-3">
                   <li>
-                    <Link href="/" className="text-gray-400 hover:text-purple-400 transition-colors">
+                    <Link href="/" className="text-gray-400 hover:text-violet-300 transition-colors">
                       AI Search
                     </Link>
                   </li>
                   <li>
-                    <Link href="/discover" className="text-gray-400 hover:text-purple-400 transition-colors">
+                    <Link href="/discover" className="text-gray-400 hover:text-violet-300 transition-colors">
                       Discover
                     </Link>
                   </li>
                   <li>
-                    <Link href="/demo" className="text-gray-400 hover:text-purple-400 transition-colors">
+                    <Link href="/demo" className="text-gray-400 hover:text-violet-300 transition-colors">
                       Demo
                     </Link>
                   </li>
                   <li>
-                    <Link href="#" className="text-gray-400 hover:text-purple-400 transition-colors">
+                    <Link href="#" className="text-gray-400 hover:text-violet-300 transition-colors">
                       API Access
                     </Link>
                   </li>
@@ -68,22 +68,22 @@ export default function Footer() {
                 <h3 className="text-white font-semibold text-lg mb-4">Company</h3>
                 <ul className="space-y-3">
                   <li>
-                    <Link href="/about" className="text-gray-400 hover:text-purple-400 transition-colors">
+                    <Link href="/about" className="text-gray-400 hover:text-violet-300 transition-colors">
                       About Us
                     </Link>
                   </li>
                   <li>
-                    <Link href="/privacy" className="text-gray-400 hover:text-purple-400 transition-colors">
+                    <Link href="/privacy" className="text-gray-400 hover:text-violet-300 transition-colors">
                       Privacy Policy
                     </Link>
                   </li>
                   <li>
-                    <Link href="/terms" className="text-gray-400 hover:text-purple-400 transition-colors">
+                    <Link href="/terms" className="text-gray-400 hover:text-violet-300 transition-colors">
                       Terms of Service
                     </Link>
                   </li>
                   <li>
-                    <Link href="/contact" className="text-gray-400 hover:text-purple-400 transition-colors">
+                    <Link href="/contact" className="text-gray-400 hover:text-violet-300 transition-colors">
                       Contact
                     </Link>
                   </li>
@@ -94,14 +94,14 @@ export default function Footer() {
 
           {/* Bottom Bar */}
           <FadeContent delay={200}>
-            <div className="border-t border-gray-800 mt-12 pt-8">
+            <div className="border-t border-gray-700 mt-12 pt-8">
               <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
                 <div className="text-gray-400 text-sm">
                   © 2025 Merg. All rights reserved.
                 </div>
                 <div className="flex items-center space-x-4 text-sm text-gray-400">
                   <span className="flex items-center space-x-2">
-                    <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse"></div>
+                    <div className="h-2 w-2 bg-violet-500 rounded-full animate-pulse"></div>
                     <span>All systems operational</span>
                   </span>
                 </div>

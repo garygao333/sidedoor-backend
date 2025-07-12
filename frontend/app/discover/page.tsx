@@ -860,6 +860,7 @@ export default function DiscoverPage() {
   }, [])
 
   const handleSearch = (item: MediaItem | { title: string; description: string; type: 'text-search' }) => {
+    console.log('handleSearch called with item:', item)
     let searchTerm: string
     
     if (item.type === 'text-search') {
@@ -871,6 +872,7 @@ export default function DiscoverPage() {
       searchTerm = `Find me ${mediaItem.title}${mediaItem.year ? ` from ${mediaItem.year}` : ''}${mediaItem.type === 'movie' ? ' movie' : mediaItem.type === 'tv' ? ' TV show' : ` ${mediaItem.type}`}`
     }
     
+    console.log('Navigating to chat with search term:', searchTerm)
     // Navigate to chat page with the search query as URL parameter
     router.push(`/chat?q=${encodeURIComponent(searchTerm)}`)
   }
@@ -950,6 +952,26 @@ export default function DiscoverPage() {
                 blurToFocus={true}
                 colorShiftOnHover={false}
                 columns={6}
+                onItemClick={(item) => {
+                  // Convert MasonryItem back to MediaItem for handleSearch
+                  const mediaItem = {
+                    id: item.id,
+                    title: item.title || '',
+                    type: item.type as any,
+                    description: item.description || '',
+                    year: item.year,
+                    rating: item.rating,
+                    poster: item.img,
+                    platform: item.platform,
+                    videoId: item.videoId,
+                    channel: item.channel,
+                    views: item.views,
+                    duration: item.duration,
+                    publishedAt: item.publishedAt,
+                    youtubeData: item.youtubeData
+                  }
+                  handleSearch(mediaItem)
+                }}
               />
             )}
           </div>
