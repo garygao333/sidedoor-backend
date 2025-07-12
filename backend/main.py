@@ -119,7 +119,7 @@ async def poll_job(job_id: str):
         "completed_at": job["completed_at"]
     }
 
-@app.websocket("/ws/{job_id}")
+@app.websocket("/api/ws/{job_id}")
 async def websocket_endpoint(websocket: WebSocket, job_id: str):
     if job_id not in jobs:
         await websocket.close(code=1008, reason="Job not found")

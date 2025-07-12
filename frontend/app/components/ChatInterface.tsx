@@ -36,6 +36,12 @@ export default function ChatInterface({ jobId, query, isSearching, onSearchCompl
 
   // Helper to build correct endpoint (uses '/api' proxy when API_BASE is blank)
   const buildUrl = (path: string) => (API_BASE ? `${API_BASE}${path}` : `/api${path}`)
+  // const buildUrl = (path: string, isWebSocket = false) => {
+  //   const base = API_BASE || (isWebSocket ? `${window.location.origin}` : '')
+  //   // Ensure there's exactly one slash between the base and path
+  //   const separator = base.endsWith('/') || path.startsWith('/') ? '' : '/'
+  //   return `${base}${separator}${path}`
+  // }
   const [messages, setMessages] = useState<string[]>([])
   const [jobStatus, setJobStatus] = useState<JobStatus | null>(null)
   const [showFeedback, setShowFeedback] = useState(false)
