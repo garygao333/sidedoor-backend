@@ -37,6 +37,8 @@ export default function ChatPage() {
     }
   }, [user, router])
 
+  const handleSearchComplete = useCallback(() => setIsSearching(false), [])
+
   const handleSearch = useCallback(async (searchQuery: string) => {
     if (!searchQuery.trim()) return
 
@@ -326,7 +328,7 @@ export default function ChatPage() {
                   jobId={currentJobId}
                   query={currentQuery}
                   isSearching={isSearching}
-                  onSearchComplete={() => setIsSearching(false)}
+                  onSearchComplete={handleSearchComplete}
                 />
               </div>
               
