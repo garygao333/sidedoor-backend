@@ -4,21 +4,17 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { EyeIcon, EyeSlashIcon, CheckCircleIcon, SparklesIcon, RocketLaunchIcon } from '@heroicons/react/24/outline';
+import { CheckCircleIcon, SparklesIcon, RocketLaunchIcon } from '@heroicons/react/24/outline';
 import StarBorderButton from '../components/StarBorderButton';
 import Hyperspeed from '../components/Hyperspeed';
 
 export default function Waitlist() {
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [name, setName] = useState('');
   const [reason, setReason] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const [success, setSuccess] = useState(false); // Change to true for seeing the success page
   const [mounted, setMounted] = useState(false);
   const { addToWaitlist } = useAuth();
   const router = useRouter();
@@ -31,29 +27,20 @@ export default function Waitlist() {
     e.preventDefault();
     setError('');
 
-    if (password !== confirmPassword) {
-      setError('Passwords do not match');
-      return;
-    }
-
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters');
-      return;
-    }
-
     if (!name.trim()) {
       setError('Name is required');
+      return;
+    }
+
+    if (!email.trim()) {
+      setError('Email is required');
       return;
     }
 
     setLoading(true);
 
     try {
-      await addToWaitlist(email, password, {
-        name: name.trim(),
-        reason: reason.trim(),
-        joinedFrom: 'waitlist-page'
-      });
+      await addToWaitlist(name, email, reason);
       setSuccess(true);
     } catch (error: any) {
       setError(error.message);
@@ -61,15 +48,7 @@ export default function Waitlist() {
       setLoading(false);
     }
   };
-
-  const getPasswordStrength = (password: string) => {
-    if (password.length < 6) return { strength: 'weak', color: 'bg-red-500', width: '33%' };
-    if (password.length < 10) return { strength: 'medium', color: 'bg-yellow-500', width: '66%' };
-    return { strength: 'strong', color: 'bg-green-500', width: '100%' };
-  };
-
-  const passwordStrength = getPasswordStrength(password);
-
+  // For testing the sucess page
   if (success) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center px-4 relative">
@@ -114,45 +93,85 @@ export default function Waitlist() {
           }}
         />
 
-        <div className="max-w-md w-full relative z-10">
-          <div className="bg-gray-900 border border-green-500/50 p-8 text-center shadow-lg">
-            <div className="w-12 h-12 bg-green-500 mx-auto mb-4 flex items-center justify-center">
-              <CheckCircleIcon className="w-6 h-6 text-white" />
+        <div className="max-w-lg w-full relative z-10">
+          <div className="bg-gray-900/90 backdrop-blur-sm border-2 border-purple-500/60 p-8 text-center shadow-2xl">
+            {/* Success Icon */}
+            <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-purple-600 mx-auto mb-6 flex items-center justify-center rounded-full">
+              <CheckCircleIcon className="w-8 h-8 text-white" />
             </div>
             
-            <h1 className="text-2xl font-bold text-green-400 mb-3">
-              Welcome Aboard!
+            {/* Header */}
+            <h1 className="text-3xl font-bold text-purple-400 mb-4">
+              You're In!
             </h1>
             
-            <p className="text-gray-300 text-sm mb-6 leading-relaxed">
-              You're now part of an exclusive community of early adopters. Get ready to explore the hidden corners of the web.
+            <p className="text-gray-300 text-base mb-8 leading-relaxed">
+              Welcome to the exclusive Merg waitlist. You'll be among the first to explore the hidden depths of the internet with AI-powered search.
             </p>
             
-            <div className="bg-gray-800 border border-green-500/30 p-4 mb-6">
-              <div className="flex items-center justify-center mb-3">
-                <RocketLaunchIcon className="w-4 h-4 text-green-400 mr-2" />
-                <span className="text-green-300 font-semibold text-sm">What's Next?</span>
+            {/* Email Confirmation Section */}
+            <div className="bg-gray-800/60 border-2 border-purple-500/40 p-6 mb-6 text-left">
+              <div className="flex items-center mb-4">
+                <RocketLaunchIcon className="w-5 h-5 text-purple-400 mr-3" />
+                <h2 className="text-purple-300 font-semibold text-lg">What happens next?</h2>
               </div>
-              <ul className="text-green-300 text-xs space-y-2 text-left">
-                <li className="flex items-center">
-                  <div className="w-1.5 h-1.5 bg-green-400 mr-2"></div>
-                  Check your email for confirmation
-                </li>
-
-                <li className="flex items-center">
-                  <div className="w-1.5 h-1.5 bg-green-400 mr-2"></div>
-                  Get notified when early access launches
-                </li>
-              </ul>
+              
+              <div className="space-y-4">
+                <div className="flex items-start">
+                  <div className="w-2 h-2 bg-purple-400 rounded-full mt-2 mr-3 flex-shrink-0"></div>
+                  <p className="text-gray-300 text-sm">
+                    <span className="font-medium text-purple-300">Email confirmation:</span> Check your inbox for a welcome message
+                  </p>
+                </div>
+                
+                <div className="flex items-start">
+                  <div className="w-2 h-2 bg-purple-400 rounded-full mt-2 mr-3 flex-shrink-0"></div>
+                  <p className="text-gray-300 text-sm">
+                    <span className="font-medium text-purple-300">Early access:</span> Get notified when Merg launches
+                  </p>
+                </div>
+                
+                <div className="flex items-start">
+                  <div className="w-2 h-2 bg-purple-400 rounded-full mt-2 mr-3 flex-shrink-0"></div>
+                  <p className="text-gray-300 text-sm">
+                    <span className="font-medium text-purple-300">Exclusive updates:</span> Receive behind-the-scenes development insights
+                  </p>
+                </div>
+              </div>
             </div>
 
-            <Link 
-              href="/" 
-              className="inline-flex items-center bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-6 text-sm transition-colors duration-300"
-            >
-              <SparklesIcon className="w-4 h-4 mr-2" />
-              Start Exploring
-            </Link>
+            {/* Meeting Scheduling Section */}
+            <div className="bg-gray-800/40 border-2 border-purple-400/30 p-6 mb-6">
+              <h3 className="text-purple-300 font-semibold text-lg mb-3">
+                Want to dive deeper?
+              </h3>
+              <p className="text-gray-300 text-sm mb-6 leading-relaxed">
+                Schedule a 30-minute chat with our founder to discuss your ideas, share feedback, or learn more about Merg's vision.
+              </p>
+              
+              <a 
+                href="https://calendly.com/garygao-seas/30min" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="block w-full"
+              >
+                <StarBorderButton
+                  variant="primary"
+                  size="lg"
+                  className="w-full bg-transparent hover:bg-purple-500/10"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  <span>Schedule 30-Minute Chat</span>
+                </StarBorderButton>
+              </a>
+            </div>
+
+            {/* Footer Message */}
+            <p className="text-gray-400 text-xs">
+              Thank you for joining our journey into the unknown
+            </p>
           </div>
         </div>
       </div>
@@ -269,90 +288,6 @@ export default function Waitlist() {
               </div>
             </div>
 
-            {/* Password Fields */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Password Field */}
-              <div>
-                <label htmlFor="password" className="block text-xs font-semibold text-gray-300 mb-2">
-                  Password
-                </label>
-                <div className="relative">
-                  <input
-                    id="password"
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    className="w-full px-3 py-2 bg-gray-800/60 backdrop-blur-sm border border-gray-600/50 focus:ring-1 focus:ring-purple-500 focus:border-purple-500 text-white placeholder-gray-400 pr-10 transition-colors duration-300 text-sm"
-                    placeholder="Create a password"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-purple-400 transition-colors duration-200"
-                  >
-                    {showPassword ? <EyeSlashIcon className="h-4 w-4" /> : <EyeIcon className="h-4 w-4" />}
-                  </button>
-                </div>
-                {password && (
-                  <div className="mt-2">
-                    <div className="flex items-center justify-between text-xs text-gray-400 mb-1">
-                      <span>Password strength</span>
-                      <span className="capitalize text-purple-400">{passwordStrength.strength}</span>
-                    </div>
-                    <div className="w-full bg-gray-700/50 h-1.5">
-                      <div 
-                        className={`${passwordStrength.color} h-1.5 transition-all duration-500`}
-                        style={{ width: passwordStrength.width }}
-                      ></div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Confirm Password Field */}
-              <div>
-                <label htmlFor="confirmPassword" className="block text-xs font-semibold text-gray-300 mb-2">
-                  Confirm Password
-                </label>
-                <div className="relative">
-                  <input
-                    id="confirmPassword"
-                    type={showConfirmPassword ? 'text' : 'password'}
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    required
-                    className="w-full px-3 py-2 bg-gray-800/60 backdrop-blur-sm border border-gray-600/50 focus:ring-1 focus:ring-purple-500 focus:border-purple-500 text-white placeholder-gray-400 pr-10 transition-colors duration-300 text-sm"
-                    placeholder="Confirm your password"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-purple-400 transition-colors duration-200"
-                  >
-                    {showConfirmPassword ? <EyeSlashIcon className="h-4 w-4" /> : <EyeIcon className="h-4 w-4" />}
-                  </button>
-                </div>
-                {confirmPassword && (
-                  <div className="mt-2 flex items-center">
-                    {password === confirmPassword ? (
-                      <div className="flex items-center text-green-400 text-xs">
-                        <CheckCircleIcon className="w-3 h-3 mr-1" />
-                        Passwords match
-                      </div>
-                    ) : (
-                      <div className="flex items-center text-red-400 text-xs">
-                        <div className="w-3 h-3 mr-1 bg-red-500 flex items-center justify-center">
-                          <span className="text-white text-xs">✕</span>
-                        </div>
-                        Passwords don't match
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-
             {/* Interest Field */}
             <div>
               <label htmlFor="reason" className="block text-xs font-semibold text-gray-300 mb-2">
@@ -362,7 +297,7 @@ export default function Waitlist() {
                 id="reason"
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                rows={2}
+                rows={3}
                 className="w-full px-3 py-2 bg-gray-800/60 backdrop-blur-sm border border-gray-600/50 focus:ring-1 focus:ring-purple-500 focus:border-purple-500 text-white placeholder-gray-400 transition-colors duration-300 resize-none text-sm"
                 placeholder="Tell us what excites you about Merg search..."
               />
@@ -375,7 +310,7 @@ export default function Waitlist() {
               variant="primary"
               size="lg"
               className="w-full"
-              onClick={() => {}} // Form submission is handled by form onSubmit
+              onClick={() => {}}
             >
               {loading ? (
                 <>
