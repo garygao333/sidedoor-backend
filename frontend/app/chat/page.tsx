@@ -27,9 +27,117 @@ export default function ChatPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showMediaPlayer, setShowMediaPlayer] = useState(false)
   const [mediaUrl, setMediaUrl] = useState('')
+  const [extractingVideo, setExtractingVideo] = useState(false)
   const { user, addSearchHistory, logout } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
+
+  // Video extraction service
+  const extractDirectVideoUrl = async (url: string): Promise<string | null> => {
+    try {
+      // Archive.org extraction
+      if (url.includes('archive.org/details/')) {
+        const match = url.match(/archive\.org\/details\/([^\/\?]+)/)
+        if (!match) return null
+        
+        const identifier = match[1]
+        
+        const response = await fetch(`https://archive.org/metadata/${identifier}`)
+        const data = await response.json()
+        
+        // Find the best video file (MP4 preferred)
+        const videoFiles = data.files?.filter((file: any) => 
+          file.format === 'h.264' || 
+          file.format === 'MP4' || 
+          file.name?.endsWith('.mp4') ||
+          file.name?.endsWith('.webm')
+        )
+        
+        if (videoFiles && videoFiles.length > 0) {
+          const sortedVideos = videoFiles.sort((a: any, b: any) => {
+            // Prefer MP4 format
+            if (a.name?.endsWith('.mp4') && !b.name?.endsWith('.mp4')) return -1
+            if (!a.name?.endsWith('.mp4') && b.name?.endsWith('.mp4')) return 1
+            
+            // Then sort by size (larger = higher quality)
+            return parseInt(b.size || '0') - parseInt(a.size || '0')
+          })
+          
+          const bestVideo = sortedVideos[0]
+          return `https://archive.org/download/${identifier}/${bestVideo.name}`
+        }
+      }
+      
+      // Vimeo extraction (basic)
+      if (url.includes('vimeo.com/')) {
+        const videoId = url.match(/vimeo\.com\/(\d+)/)?.[1]
+        if (videoId) {
+          try {
+            const response = await fetch(`https://vimeo.com/api/v2/video/${videoId}.json`)
+            const data = await response.json()
+            if (data[0]?.mp4) {
+              // Try to get the highest quality
+              return data[0].mp4.hd || data[0].mp4.sd || data[0].mp4.mobile
+            }
+          } catch (error) {
+            console.error('Vimeo extraction failed:', error)
+          }
+        }
+      }
+      
+      // Direct video file URLs
+      if (url.match(/\.(mp4|webm|ogg|avi|mov)(\?.*)?$/i)) {
+        return url
+      }
+      
+      return null
+    } catch (error) {
+      console.error('Failed to extract direct video URL:', error)
+      return null
+    }
+  }
+
+  // Agent function to process scraped video URLs
+  const processVideoUrls = async (urls: string[]): Promise<{ originalUrl: string, directUrl: string | null, title?: string }[]> => {
+    const results = []
+    
+    for (const url of urls) {
+      try {
+        setExtractingVideo(true)
+        const directUrl = await extractDirectVideoUrl(url)
+        
+        // Try to get video title/metadata
+        let title = 'Video'
+        if (url.includes('archive.org')) {
+          const identifier = url.match(/archive\.org\/details\/([^\/\?]+)/)?.[1]
+          if (identifier) {
+            try {
+              const response = await fetch(`https://archive.org/metadata/${identifier}`)
+              const data = await response.json()
+              title = data.metadata?.title || identifier.replace(/[-_]/g, ' ')
+            } catch (e) {
+              title = identifier.replace(/[-_]/g, ' ')
+            }
+          }
+        }
+        
+        results.push({
+          originalUrl: url,
+          directUrl,
+          title
+        })
+      } catch (error) {
+        console.error(`Failed to process video URL ${url}:`, error)
+        results.push({
+          originalUrl: url,
+          directUrl: null
+        })
+      }
+    }
+    
+    setExtractingVideo(false)
+    return results
+  }
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -43,13 +151,39 @@ export default function ChatPage() {
   const handleSearch = useCallback(async (searchQuery: string) => {
     if (!searchQuery.trim()) return
 
-    // Check if the query is "test" and show media player
-    if (searchQuery.toLowerCase().trim() === 'test') {
+    // Check if the query is "test" or "archive" and show media player
+    if (searchQuery.toLowerCase().trim() === 'test' || searchQuery.toLowerCase().trim() === 'archive') {
       setCurrentQuery(searchQuery)
       setShowMediaPlayer(true)
-      setMediaUrl('https://www.youtube.com/watch?v=L0MK7qz13bU&list=RDL0MK7qz13bU&start_radio=1')
+      
+      // Test with archive.org video - extract direct URL
+      const testUrl = 'https://archive.org/details/tearsofsteelblendervfxopenmovie800p'
+      
+      try {
+        setExtractingVideo(true)
+        const directUrl = await extractDirectVideoUrl(testUrl)
+        if (directUrl) {
+          console.log('Extracted direct video URL:', directUrl)
+          setMediaUrl(directUrl)
+        } else {
+          // Fallback to original URL
+          setMediaUrl(testUrl)
+        }
+      } catch (error) {
+        console.error('Video extraction failed:', error)
+        setMediaUrl(testUrl)
+      } finally {
+        setExtractingVideo(false)
+      }
+      
       return
     }
+
+    // Check if query contains video search intent
+    const videoKeywords = ['video', 'watch', 'movie', 'film', 'documentary', 'tutorial', 'stream']
+    const isVideoSearch = videoKeywords.some(keyword => 
+      searchQuery.toLowerCase().includes(keyword)
+    )
 
     setCurrentQuery(searchQuery)
     setIsSearching(true)
@@ -62,12 +196,27 @@ export default function ChatPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ q: searchQuery }),
+        body: JSON.stringify({ 
+          q: searchQuery,
+          extractVideos: isVideoSearch // Tell backend to look for videos
+        }),
       })
 
       if (response.ok) {
         const data = await response.json()
         setCurrentJobId(data.job_id)
+        
+        // If the response contains video URLs, process them
+        if (data.videoUrls && data.videoUrls.length > 0) {
+          const processedVideos = await processVideoUrls(data.videoUrls)
+          
+          // If we found direct video URLs, show media player
+          const playableVideos = processedVideos.filter(v => v.directUrl)
+          if (playableVideos.length > 0) {
+            setShowMediaPlayer(true)
+            setMediaUrl(playableVideos[0].directUrl!)
+          }
+        }
         
         // Save search to history
         try {
@@ -108,6 +257,7 @@ export default function ChatPage() {
     setIsSearching(false)
     setShowMediaPlayer(false)
     setMediaUrl('')
+    setExtractingVideo(false)
   }
 
   // Show loading while checking authentication
@@ -252,32 +402,32 @@ export default function ChatPage() {
                     variant="secondary"
                     className="!bg-purple-900/20 !text-purple-200 !border-purple-500/40 hover:!bg-purple-800/30 hover:!border-purple-400/60 text-left p-4 h-auto flex-col items-start space-y-1"
                   >
-                    <div className="font-medium text-purple-100">Try media player</div>
-                    <div className="text-sm text-purple-400">Type "test" to see a demo video</div>
+                    <div className="font-medium text-purple-100">Try video extraction</div>
+                    <div className="text-sm text-purple-400">Type "test" to see direct video playback</div>
                   </StarBorderButton>
                   <StarBorderButton
-                    onClick={() => handleSearch("Latest AI research papers")}
+                    onClick={() => handleSearch("Find documentary videos about AI")}
                     variant="secondary"
                     className="!bg-purple-900/20 !text-purple-200 !border-purple-500/40 hover:!bg-purple-800/30 hover:!border-purple-400/60 text-left p-4 h-auto flex-col items-start space-y-1"
                   >
-                    <div className="font-medium text-purple-100">Latest AI research papers</div>
-                    <div className="text-sm text-purple-400">Find cutting-edge research publications</div>
+                    <div className="font-medium text-purple-100">Find AI documentaries</div>
+                    <div className="text-sm text-purple-400">Search and watch videos directly</div>
                   </StarBorderButton>
                   <StarBorderButton
-                    onClick={() => handleSearch("Open source alternatives to popular software")}
+                    onClick={() => handleSearch("Tutorial videos for web development")}
                     variant="secondary"
                     className="!bg-purple-900/20 !text-purple-200 !border-purple-500/40 hover:!bg-purple-800/30 hover:!border-purple-400/60 text-left p-4 h-auto flex-col items-start space-y-1"
                   >
-                    <div className="font-medium text-purple-100">Open source alternatives</div>
-                    <div className="text-sm text-purple-400">Discover free software alternatives</div>
+                    <div className="font-medium text-purple-100">Web dev tutorials</div>
+                    <div className="text-sm text-purple-400">Find and stream tutorial videos</div>
                   </StarBorderButton>
                   <StarBorderButton
-                    onClick={() => handleSearch("Best practices for web development 2025")}
+                    onClick={() => handleSearch("Open source movie downloads")}
                     variant="secondary"
                     className="!bg-purple-900/20 !text-purple-200 !border-purple-500/40 hover:!bg-purple-800/30 hover:!border-purple-400/60 text-left p-4 h-auto flex-col items-start space-y-1"
                   >
-                    <div className="font-medium text-purple-100">Web development best practices</div>
-                    <div className="text-sm text-purple-400">Learn modern development techniques</div>
+                    <div className="font-medium text-purple-100">Open source movies</div>
+                    <div className="text-sm text-purple-400">Discover free-to-watch films</div>
                   </StarBorderButton>
                 </div>
               </div>
@@ -307,13 +457,22 @@ export default function ChatPage() {
                       <span className="text-purple-300 text-sm">🤖</span>
                     </div>
                     <div className="flex-1">
-                      <div className="bg-purple-900/30 border border-purple-500/30 rounded-lg p-3 mb-3">
-                        <p className="text-purple-100">I found a great video for you! Here it is:</p>
-                      </div>
-                      <MediaPlayer 
-                        url={mediaUrl}
-                        title="Test Video"
-                      />
+                      {extractingVideo ? (
+                        <div className="bg-purple-900/30 border border-purple-500/30 rounded-lg p-3 mb-3">
+                          <p className="text-purple-100">🔍 Extracting video for direct playback...</p>
+                        </div>
+                      ) : (
+                        <div className="bg-purple-900/30 border border-purple-500/30 rounded-lg p-3 mb-3">
+                          <p className="text-purple-100">I found a video and extracted it for direct playback! Here it is:</p>
+                        </div>
+                      )}
+                      
+                      {!extractingVideo && (
+                        <MediaPlayer 
+                          url={mediaUrl}
+                          title="Extracted Video"
+                        />
+                      )}
                     </div>
                   </div>
                 </div>
@@ -325,7 +484,7 @@ export default function ChatPage() {
                   <ChatSearchBar 
                     onSearch={handleSearch}
                     isSearching={isSearching}
-                    placeholder="Ask a follow-up..."
+                    placeholder="Search for more videos..."
                   />
                 </div>
               </div>
