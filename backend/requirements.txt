@@ -17,3 +17,11 @@ google-cloud-storage
 nest-asyncio
 langgraph
 duckduckgo_search
+
+exa_py
+httpx>=0.26.0
+langchain-openai>=0.1.0
+langchain>=0.1.16
+langchain-community>=0.0.29
+tiktoken>=0.6.0
+nest_asyncio>=1.6.0
