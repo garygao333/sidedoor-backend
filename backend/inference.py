@@ -1,7 +1,3 @@
-# ──────────────────────────────────────────────────────────────────────────────
-#  FilmScout + VidScout backend (minimal GCS-free version)
-#  Drop-in replacement for your previous search pipeline
-# ──────────────────────────────────────────────────────────────────────────────
 import os, re, json, time, asyncio, datetime as dt, hashlib, textwrap, logging
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
@@ -36,18 +32,6 @@ PLAYABLE_CT = re.compile(
 ARCHIVE_OK  = re.compile(
     r"https?://(?:archive\.org|youtu\.be|youtube\.com|vimeo\.com)", re.I)
 
-# async def _head_ok(url: str) -> str:
-#     if ARCHIVE_OK.search(url):
-#         return "OK"
-#     try:
-#         async with httpx.AsyncClient(timeout=2, follow_redirects=True) as c:
-#             r = await c.head(url)
-#         if PLAYABLE_CT.search(r.headers.get("content-type", "")):
-#             return "OK"
-#     except Exception:
-#         pass
-#     return "BAD"
-
 WHITELIST = re.compile(
     r"https?://("
     r"(www\.)?youtube\.com/"
@@ -66,8 +50,6 @@ PLAYABLE_CT = re.compile(r"^(video/|application/(x-mpegURL|vnd\.apple\.mpegurl))
 
 
 async def _head_ok(url: str) -> str:
-    """Return 'OK' if the URL is *likely* playable."""
-    # 0obvious – any whitelisted streamer = OK
     if WHITELIST.search(url):
         return "OK"
 
@@ -139,8 +121,7 @@ async def recommend_titles(question: str) -> List[Dict]:
         if isinstance(m, dict) and "title" in m and "year" in m
     ]
 
-    return movies[:3]          # ≤ 3 suggestions
-
+    return movies[:3] 
 
 # --------------- VidScout prompt --------------------------------------------
 PREFIX = """
@@ -158,37 +139,6 @@ Do *not* call any more tools after that. Think step-by-step.
 SUFFIX = "Remember: stop as soon as you have a playable link."
 
 # --------------- logging callback -------------------------------------------
-# class LogHandler(BaseCallbackHandler):
-#     def __init__(self, state): self.state = state
-
-#     def _add(self, msg: str, lvl: str = "info"):
-#         ts = dt.datetime.utcnow().isoformat()
-#         self.state.logs.append({"type": lvl, "message": msg, "timestamp": ts})
-#         logger.info(msg)
-
-#         if self.state.websocket_manager:                     #   ▲ NEW
-#             asyncio.create_task(                             #   │
-#                 self.state.websocket_manager.broadcast(      #   │
-#                     self.state.job_id,                       #   │
-#                     {"type": "log",                          #   │
-#                      "message": msg,                         #   │
-#                      "timestamp": ts,                        #   │
-#                      "level": lvl}                           #   │
-#                 )                                            #   │
-#             )                                                #   ▼
-
-#     # LLM reasoning steps
-#     def on_llm_end(self, response, **kw):
-#         text = response.generations[0][0].text.strip()
-#         self._add(f"LLM → {text}", "debug")
-
-#     # tool inputs / outputs
-#     def on_tool_start(self, tool, input_str, **kw):
-#         self._add(f"CALL {tool}  {input_str}", "debug")
-
-#     def on_tool_end(self, output, **kw):
-#         short = output if len(output) < 250 else output[:247] + "…"
-#         self._add(f"OBS  {short}", "debug")
 
 class LogHandler(BaseCallbackHandler):
     def __init__(self, state): 
@@ -341,22 +291,6 @@ async def run_vid_agent(prompt: str, callbacks: list) -> str:
         logger.error(f"VidAgent error: {e}")
         return f"Error: {e}"
 
-
-# async def run_vid_agent(prompt: str, callbacks: list) -> str:
-#     try:
-#         result = await asyncio.to_thread(
-#             vid_agent.invoke,
-#             {"input": prompt},   # 👈 HERE
-#             {"callbacks": callbacks},
-#         )
-#         return result.get("output", "")
-#     except Exception as e:
-#         logger.error(f"VidAgent error: {e}")
-#         return f"Error: {e}"
-
-
-# URL_RE = re.compile(r'https?://\S+')
-
 # --------------- driver ------------------------------------------------------
 
 async def run_backend(user_query: str) -> Dict[str, Any]:
@@ -436,73 +370,6 @@ async def run_backend(user_query: str) -> Dict[str, Any]:
         logger.error(f"Unexpected error in run_backend: {e}", exc_info=True)
         return {"status": "error", "error": str(e), "logs": getattr(state, 'logs', [])}
 
-# async def run_backend(user_query: str) -> Dict[str, Any]:
-#     try:
-#         state = S(query=user_query)
-#         cb = LogHandler(state)
-
-#         await state.log(f"Starting search: {user_query}")
-
-#         # Add try-catch around recommend_titles
-#         try:
-#             movies = await recommend_titles(user_query)
-#             logger.info(f"recommend_titles returned: {movies}")
-#         except Exception as e:
-#             logger.error(f"Error in recommend_titles: {e}", exc_info=True)
-#             await state.log(f"Error in recommend_titles: {e}", "error")
-#             return {"status": "error", "logs": state.logs, "error": str(e)}
-        
-#         if not movies:
-#             await state.log("FilmScout returned nothing", "error")
-#             return {"status": "error", "logs": state.logs}
-
-#         for mv in movies:
-#             try:
-#                 await state.log(f"Trying {mv.get('title', 'Unknown')} ({mv.get('year', 'Unknown')}) …")
-#                 seed = f"\"{mv.get('title', '')}\" {mv.get('year', '')} full movie watch online"
-#                 prompt = (f"Find a playable link for \"{mv.get('title', '')}\" ({mv.get('year', '')}). "
-#                           f"Start with the query: {seed}")
-
-#                 # Use the new agent runner instead of the deprecated run method
-#                 result: str = await run_vid_agent(prompt, [cb])
-
-#                 # parse VidScout response -----------------------------
-#                 link = None
-#                 if isinstance(result, str):
-#                     if result.lstrip().upper().startswith("FINISH:"):
-#                         link = result.split(":", 1)[1].strip()
-#                     else:                                # lenient fallback
-#                         m = URL_RE.search(result)
-#                         link = m.group(0) if m else None
-
-#                 if link:
-#                     state.best = link
-#                     await state.log(f"Success → {link}", "success")
-#                     break
-                    
-#             except Exception as e:
-#                 logger.error(f"Error processing movie {mv}: {e}", exc_info=True)
-#                 await state.log(f"Error processing movie {mv}: {e}", "error")
-#                 continue
-
-#         if not state.best:
-#             await state.log("No playable link found for any suggestion", "error")
-#             return {"status": "error", "logs": state.logs}
-
-#         return {
-#             "status": "completed",
-#             "result": {
-#                 "title": mv.get("title", "Unknown"),
-#                 "year":  mv.get("year", "Unknown"),
-#                 "why":   mv.get("why", ""),
-#                 "url":   state.best,
-#             },
-#             "logs": state.logs,
-#         }
-        
-#     except Exception as e:
-#         logger.error(f"Unexpected error in run_backend: {e}", exc_info=True)
-#         return {"status": "error", "error": str(e), "logs": getattr(state, 'logs', [])}
 
 main = run_backend
 
