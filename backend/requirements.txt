@@ -17,6 +17,7 @@ google-cloud-storage
 nest-asyncio
 langgraph
 duckduckgo_search
+langchain_google_genai
 
 exa_py
 httpx>=0.26.0

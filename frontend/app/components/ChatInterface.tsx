@@ -210,14 +210,14 @@ export default function ChatInterface({ jobId, query, isSearching, onSearchCompl
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data)
-        console.log('🔧 Debug - WebSocket message received:', data) // Debug log
+        // console.log('🔧 Debug - WebSocket message received:', data) // Debug log
         
         if (data.type === 'log' && data.message) {
           // live reasoning / search steps
           setMessages(prev => [...prev, `🤖 ${data.message}`])
         } else if (data.type === 'result' && data.result) {
           // Set the result directly from WebSocket
-          console.log('🔧 Debug - Received result via WebSocket:', data.result) // Debug log
+          // console.log('🔧 Debug - Received result via WebSocket:', data.result) // Debug log
           setJobStatus(prev => ({
             ...prev, 
             result: data.result, 
@@ -234,7 +234,7 @@ export default function ChatInterface({ jobId, query, isSearching, onSearchCompl
           onSearchComplete()
         } else if (data.type === 'status' && data.status === 'completed') {
           // Legacy completion - still call fetchJobStatus as fallback
-          console.log('🔧 Debug - Received legacy completion status') // Debug log
+          // console.log('🔧 Debug - Received legacy completion status') // Debug log
           ws.close()
           onSearchComplete()
           fetchJobStatus()
@@ -266,25 +266,25 @@ export default function ChatInterface({ jobId, query, isSearching, onSearchCompl
     try {
       // Ensure we always hit the /api/poll endpoint regardless of API_BASE format
       const pollUrl = API_BASE ? `${API_BASE}/api/poll/${jobId}` : `/api/poll/${jobId}`
-      console.log('🔧 Debug - Fetching job status from:', pollUrl) // Debug log
+      // console.log('🔧 Debug - Fetching job status from:', pollUrl) // Debug log
       const response = await fetch(pollUrl)
       if (response.ok) {
         const status = await response.json()
-        console.log('🔧 Debug - Full status response:', status) // Debug log
+        // console.log('🔧 Debug - Full status response:', status) // Debug log
         setJobStatus(status)
         
         // Handle movie result format - check multiple possible paths
         const movieResult = getMovieResult(status)
-        console.log('🔧 Debug - Extracted movie result:', movieResult) // Debug log
+        // console.log('🔧 Debug - Extracted movie result:', movieResult) // Debug log
         
         if (movieResult && movieResult.url) {
-          console.log('🔧 Debug - Found movie result:', movieResult) // Debug log
+          // console.log('🔧 Debug - Found movie result:', movieResult) // Debug log
           setMessages(prev => [
             ...prev,
             `✅ **Search Complete!** Found playable movie: **${movieResult.title}**`
           ])
         } else if (status.status === 'completed' && !movieResult) {
-          console.log('🔧 Debug - Completed but no movie result found') // Debug log
+          // console.log('🔧 Debug - Completed but no movie result found') // Debug log
           setMessages(prev => [
             ...prev,
             `❌ **No results found** for "${query}". Try a different search term.`
@@ -296,7 +296,7 @@ export default function ChatInterface({ jobId, query, isSearching, onSearchCompl
           ])
         }
       } else {
-        console.log('🔧 Debug - Response not OK:', response.status, response.statusText)
+        // console.log('🔧 Debug - Response not OK:', response.status, response.statusText)
       }
     } catch (error) {
       console.error('Error fetching job status:', error)
@@ -327,7 +327,7 @@ export default function ChatInterface({ jobId, query, isSearching, onSearchCompl
 
   // Extract the movie result from various possible response structures
   const getMovieResult = (status: JobStatus): MovieResult | null => {
-    console.log('🔧 Debug - getMovieResult called with:', status);
+    // console.log('🔧 Debug - getMovieResult called with:', status);
     
     // Check the result field first
     if (status.result?.url && status.result.title) {
@@ -420,15 +420,15 @@ export default function ChatInterface({ jobId, query, isSearching, onSearchCompl
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Debug Info (remove this in production) */}
-      {process.env.NODE_ENV === 'development' && jobStatus && (
+      {/* Debug Info (commented out) */}
+      {/* {process.env.NODE_ENV === 'development' && jobStatus && (
         <div className="border border-yellow-500 rounded p-4 mb-4 bg-yellow-50 text-black">
           <h4 className="font-bold mb-2">🔧 Debug Info:</h4>
           <pre className="text-xs overflow-x-auto">
             {JSON.stringify(jobStatus, null, 2)}
           </pre>
         </div>
-      )}
+      )} */}
 
       {/* Movie Result */}
       {movieResult && (

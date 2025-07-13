@@ -6,8 +6,10 @@ from typing import List, Dict, Any, Optional
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-if "OPENAI_API_KEY" not in os.environ:
-    raise RuntimeError("OPENAI_API_KEY env-var is required")
+# if "OPENAI_API_KEY" not in os.environ:
+#     raise RuntimeError("OPENAI_API_KEY env-var is required")
+if "GOOGLE_API_KEY" not in os.environ:
+    raise RuntimeError("GOOGLE_API_KEY env-var is required")
 if "EXA_API_KEY" not in os.environ:
     raise RuntimeError("EXA_API_KEY env-var is required")
 
@@ -15,17 +17,48 @@ if "EXA_API_KEY" not in os.environ:
 import httpx
 from exa_py               import Exa
 from langchain.agents     import Tool, initialize_agent, AgentType, AgentExecutor
-from langchain_openai     import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
+# from langchain_openai     import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain.callbacks.base import BaseCallbackHandler
 
 # --------------- tools -------------------------------------------------------
 exa = Exa(api_key=os.getenv("EXA_API_KEY"))
 URL_RE = re.compile(r'https?://\S+')
+current_state = None
+
+# def search_exa(query: str, k: int = 20) -> str:
+#     """Return up-to-k URLs (newline-separated)."""
+#     return "\n".join(r.url for r in exa.search(query=query, num_results=k).results)
 
 def search_exa(query: str, k: int = 20) -> str:
-    """Return up-to-k URLs (newline-separated)."""
-    return "\n".join(r.url for r in exa.search(query=query, num_results=k).results)
+    """Return up-to-k URLs (newline-separated) with WebSocket logging."""
+    global current_state
+    
+    try:
+        if current_state:
+            # Log the search query via WebSocket
+            asyncio.create_task(current_state.log(f"🔍 Searching Exa for: '{query}'", "info"))
+        
+        results = exa.search(query=query, num_results=k).results
+        urls = [r.url for r in results]
+        
+        if current_state and urls:
+            # Log results via WebSocket
+            asyncio.create_task(current_state.log(f"✅ Found {len(urls)} URLs:", "info"))
+            for i, url in enumerate(urls[:5]):  # Show first 5
+                asyncio.create_task(current_state.log(f"  {i+1}. {url}", "info"))
+            if len(urls) > 5:
+                asyncio.create_task(current_state.log(f"  ... and {len(urls) - 5} more URLs", "info"))
+        elif current_state:
+            asyncio.create_task(current_state.log(f"⚠️ No URLs found for: '{query}'", "warning"))
+            
+        return "\n".join(urls)
+    except Exception as e:
+        if current_state:
+            asyncio.create_task(current_state.log(f"❌ Exa search failed: {e}", "error"))
+        logger.error(f"Exa search failed for '{query}': {e}")
+        return ""
 
 PLAYABLE_CT = re.compile(
     r"^(video/|application/(x-mpegURL|vnd\.apple\.mpegurl))", re.I)
@@ -38,7 +71,7 @@ WHITELIST = re.compile(
     r"|youtu\.be/"
     r"|archive\.org/"
     r"|player\.vimeo\.com/"
-    r"|tubitv\.com/"
+    # r"|tubitv\.com/"
     r"|plex\.tv/"
     r"|watch\.plex\.tv/"
     r"|.*\.roku\.com/"
@@ -90,9 +123,22 @@ tools = [
          description="HEAD-checks a URL. Returns 'OK' or 'BAD'.")
 ]
 
+
+
 # --------------- LLMs --------------------------------------------------------
-VID_LLM   = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.3)
-REC_LLM   = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0.4)
+# VID_LLM   = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.3)
+# REC_LLM   = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0.4)
+VID_LLM = ChatGoogleGenerativeAI(
+    model="gemini-1.5-flash",  # Comparable to gpt-4o-mini
+    temperature=0.3,
+    google_api_key=os.getenv("GOOGLE_API_KEY")
+)
+
+REC_LLM = ChatGoogleGenerativeAI(
+    model="gemini-1.5-flash",  # Comparable to gpt-3.5-turbo
+    temperature=0.4,
+    google_api_key=os.getenv("GOOGLE_API_KEY")
+)
 
 REC_PROMPT = ChatPromptTemplate.from_messages([
     ("system",
@@ -167,11 +213,40 @@ class LogHandler(BaseCallbackHandler):
 
     def on_tool_start(self, tool, input_str, **kw):
         tool_name = tool.name if hasattr(tool, 'name') else str(tool)
-        self._add(f"🔧 Calling {tool_name}: {input_str}", "debug")
+        if tool_name == "search_exa":
+            self._add(f"🔍 Searching Exa for: {input_str}", "info")
+        elif tool_name == "check_playable":
+            self._add(f"🔧 Checking playability: {input_str}", "info")
+        else:
+            self._add(f"🔧 Calling {tool_name}: {input_str}", "debug")
 
     def on_tool_end(self, output, **kw):
-        short = output if len(output) < 200 else output[:197] + "..."
-        self._add(f"📋 Tool Result: {short}", "debug")
+        # For search_exa, show the URLs found
+        if hasattr(self, '_last_tool') and self._last_tool == "search_exa":
+            urls = output.strip().split('\n') if output.strip() else []
+            if urls:
+                self._add(f"📋 Found {len(urls)} URLs:", "info")
+                for i, url in enumerate(urls[:3]):  # Show first 3 in logs
+                    self._add(f"  {i+1}. {url}", "info")
+                if len(urls) > 3:
+                    self._add(f"  ... and {len(urls) - 3} more", "info")
+            else:
+                self._add("📋 No URLs found", "warning")
+        else:
+            # For other tools, show shortened output
+            short = output if len(output) < 200 else output[:197] + "..."
+            self._add(f"📋 Tool Result: {short}", "debug")
+
+    def on_tool_start(self, tool, input_str, **kw):
+        tool_name = tool.name if hasattr(tool, 'name') else str(tool)
+        self._last_tool = tool_name  # Store for use in on_tool_end
+        
+        if tool_name == "search_exa":
+            self._add(f"🔍 Searching Exa for: {input_str}", "info")
+        elif tool_name == "check_playable":
+            self._add(f"🔧 Checking playability: {input_str}", "info")
+        else:
+            self._add(f"🔧 Calling {tool_name}: {input_str}", "debug")
 
 # --------------- state dataclass --------------------------------------------
 
@@ -201,35 +276,6 @@ class S:
                 self.job_id,
                 {"type": "log", "message": message, "timestamp": ts, "level": level},
             )
-
-# @dataclass
-# class S:
-#     query: str
-#     iter: int = 0 
-#     bad_urls: List[str] = field(default_factory=list)
-#     # logs: List[Dict[str, Any]] = field(default_factory=list)
-#     websocket_manager: Optional[Any] = None   
-#     job_id: str = ""
-#     scratchpad: List[Dict[str, str]] = field(default_factory=list)
-#     last_obs: str = ""
-#     search_terms: List[str] = field(default_factory=list)
-#     candidates: List[str] = field(default_factory=list)
-#     results: Dict[str, Any] = field(default_factory=dict)
-#     verified: List[Any] = field(default_factory=list)
-#     best: Optional[str] = None  # Single definition
-
-#     logs: List[Dict[str, str]] = field(default_factory=list)
-
-#     async def log(self, message: str, level: str = "info"):
-#         ts = dt.datetime.utcnow().isoformat()
-#         self.logs.append({"type": level, "message": message, "timestamp": ts})
-#         logger.info(f"[{level.upper()}] {message}")
-
-#         if self.websocket_manager:
-#             await self.websocket_manager.broadcast(
-#                 self.job_id,
-#                 {"type": "log", "message": message, "timestamp": ts, "level": level},
-#             )
 
 # --------------- build VidScout agent ---------------------------------------
 # vid_agent: AgentExecutor = initialize_agent(
@@ -290,22 +336,6 @@ vid_agent: AgentExecutor = AgentExecutor(
     handle_parsing_errors=True,
 )
 
-# Keep the run_vid_agent function simple
-# async def run_vid_agent(prompt: str, callbacks: list) -> str:
-#     try:
-#         result = await asyncio.to_thread(
-#             vid_agent.invoke,
-#             {
-#                 "input": prompt,
-#                 "prefix": PREFIX.strip(),
-#             },
-#             {"callbacks": callbacks},
-#         )
-#         return result.get("output", "")
-#     except Exception as e:
-#         logger.error(f"VidAgent error: {e}")
-#         return f"Error: {e}"
-
 async def run_vid_agent(prompt: str, callbacks: list) -> str: 
     try:
         # callbacks must go in the keyword-only `config` argument
@@ -322,13 +352,15 @@ async def run_vid_agent(prompt: str, callbacks: list) -> str:
 # --------------- driver ------------------------------------------------------
 
 async def run_backend(user_query: str, websocket_manager=None, job_id: str = "") -> Dict[str, Any]:
-    
+    # global current_state 
     try:
         state = S(
             query=user_query,
             websocket_manager=websocket_manager,  # Now this will be set!
             job_id=job_id  # Now this will be set!
         )
+
+        current_state = state
         
         await state.log(f"Starting search: {user_query}")
 
@@ -361,6 +393,7 @@ async def run_backend(user_query: str, websocket_manager=None, job_id: str = "")
                           f"Start with the query: {seed}")
 
                 result: str = await run_vid_agent(prompt, [cb])
+                await state.log(f"VidScout step: {result}")
 
                 # After agent completes, merge any additional logs from callback
                 if hasattr(cb, 'state') and cb.state.logs:
@@ -370,12 +403,15 @@ async def run_backend(user_query: str, websocket_manager=None, job_id: str = "")
 
                 # parse VidScout response
                 link = None
+                await state.log(f"Links: {link}")
                 if isinstance(result, str):
                     if result.lstrip().upper().startswith("FINISH:"):
                         link = result.split(":", 1)[1].strip()
+                        await state.log(f"Found link: {link}", "success")
                     else:
                         m = URL_RE.search(result)
                         link = m.group(0) if m else None
+                        await state.log(f"Found link: {link}", "success")
 
                 if link:
                     state.best = link
@@ -388,6 +424,8 @@ async def run_backend(user_query: str, websocket_manager=None, job_id: str = "")
                 logger.error(f"Error processing movie {mv}: {e}", exc_info=True)
                 await state.log(f"Error processing movie {mv}: {e}", "error")
                 continue
+        
+        current_state = None
 
         if not found_link or not successful_movie:
             await state.log("No playable link found for any suggestion", "error")
@@ -438,94 +476,6 @@ async def run_backend(user_query: str, websocket_manager=None, job_id: str = "")
     except Exception as e:
         logger.error(f"Unexpected error in run_backend: {e}", exc_info=True)
         return {"status": "error", "error": str(e), "logs": getattr(state, 'logs', [])}
-
-# async def run_backend(user_query: str) -> Dict[str, Any]:
-#     try:
-#         state = S(query=user_query)
-        
-#         await state.log(f"Starting search: {user_query}")
-
-#         try:
-#             movies = await recommend_titles(user_query)
-#             await state.log(f"Planner step: {movies}")
-#             logger.info(f"recommend_titles returned: {movies}")
-#         except Exception as e:
-#             logger.error(f"Error in recommend_titles: {e}", exc_info=True)
-#             await state.log(f"Error in recommend_titles: {e}", "error")
-#             return {"status": "error", "logs": state.logs, "error": str(e)}
-        
-#         if not movies:
-#             await state.log("FilmScout returned nothing", "error")
-#             return {"status": "error", "logs": state.logs}
-
-#         for mv in movies:
-#             try:
-#                 await state.log(f"Trying {mv.get('title', 'Unknown')} ({mv.get('year', 'Unknown')}) …")
-                
-#                 # Create callback INSIDE the loop to ensure fresh state reference
-#                 cb = LogHandler(state)
-                
-#                 seed = f"\"{mv.get('title', '')}\" {mv.get('year', '')} full movie watch online"
-#                 prompt = (f"Find a playable link for \"{mv.get('title', '')}\" ({mv.get('year', '')}). "
-#                           f"Start with the query: {seed}")
-
-#                 result: str = await run_vid_agent(prompt, [cb])
-
-#                 # After agent completes, merge any additional logs from callback
-#                 # (In case they got disconnected)
-#                 if hasattr(cb, 'state') and cb.state.logs:
-#                     for log_entry in cb.state.logs:
-#                         if log_entry not in state.logs:
-#                             state.logs.append(log_entry)
-
-#                 # parse VidScout response
-#                 link = None
-#                 if isinstance(result, str):
-#                     if result.lstrip().upper().startswith("FINISH:"):
-#                         link = result.split(":", 1)[1].strip()
-#                     else:
-#                         m = URL_RE.search(result)
-#                         link = m.group(0) if m else None
-
-#                 if link:
-#                     state.best = link
-#                     await state.log(f"Success → {link}", "success")
-#                     break
-                    
-#             except Exception as e:
-#                 logger.error(f"Error processing movie {mv}: {e}", exc_info=True)
-#                 await state.log(f"Error processing movie {mv}: {e}", "error")
-#                 continue
-
-#         if not state.best:
-#             await state.log("No playable link found for any suggestion", "error")
-#             return {"status": "error", "logs": state.logs}
-
-#         # return {
-#         #     "status": "completed",
-#         #     "result": {
-#         #         "title": mv.get("title", "Unknown"),
-#         #         "year":  mv.get("year", "Unknown"),
-#         #         "why":   mv.get("why", ""),
-#         #         "url":   state.best,
-#         #     },
-#         #     "logs": state.logs,  # This should now contain all the detailed logs
-#         # }
-#         return {
-#             "status": "completed",
-#             "result": {
-#                 "title": mv.get("title", "Unknown"),
-#                 "year":  mv.get("year", "Unknown"), 
-#                 "why":   mv.get("why", ""),
-#                 "url":   link,
-#             },
-#             "logs": state.logs,
-#         }
-        
-#     except Exception as e:
-#         logger.error(f"Unexpected error in run_backend: {e}", exc_info=True)
-#         return {"status": "error", "error": str(e), "logs": getattr(state, 'logs', [])}
-
 
 main = run_backend
 
