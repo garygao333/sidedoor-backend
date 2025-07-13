@@ -12,22 +12,49 @@ interface ChatInterfaceProps {
   onSearchComplete: () => void
 }
 
+interface MediaPlayerProps {
+  url: string;
+  title: string;
+  onClose: () => void;
+}
+
 interface MovieResult {
-  title: string
-  year: string | number
-  why: string
-  url: string
+  title: string;
+  year: string | number;
+  why: string;
+  url: string;
+  type?: string;
+  quality?: string;
 }
 
 interface JobStatus {
-  job_id: string
-  status: string
-  query: string
-  result?: MovieResult
-  results?: any[] // Add this to handle the fallback case
-  created_at: string
-  completed_at?: string
-  logs?: Array<{type: string, message: string, timestamp: string}>
+  job_id: string;
+  status: string;
+  query: string;
+  result?: {
+    title: string;
+    year?: string | number;
+    why?: string;
+    url: string;
+  };
+  results?: Array<{
+    title: string;
+    year?: string | number;
+    why?: string;
+    type?: string;
+    quality?: string;
+    file_id?: string;
+    size?: number;
+    verified?: boolean;
+    url?: string;
+  }>;
+  created_at: string;
+  completed_at?: string;
+  logs?: Array<{type: string, message: string, timestamp: string}>;
+  error?: string;
+  data?: {
+    result?: MovieResult;
+  };
 }
 
 export default function ChatInterface({ jobId, query, isSearching, onSearchComplete }: ChatInterfaceProps) {
@@ -47,21 +74,21 @@ export default function ChatInterface({ jobId, query, isSearching, onSearchCompl
   const [playerTitle, setPlayerTitle] = useState('')
 
   // Enhanced MediaPlayer component for various video sources
-  const EnhancedMediaPlayer = ({ url, title = "Media Player", onClose }) => {
+  const EnhancedMediaPlayer = ({ url, title = "Media Player", onClose }: MediaPlayerProps) => {
     // Check if it's a YouTube URL
-    const getYouTubeId = (url) => {
+    const getYouTubeId = (url: string): string | null => {
       const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/
       const match = url.match(regex)
       return match ? match[1] : null
     }
     
     // Check if it's a Plex URL
-    const isPlexUrl = (url) => {
+    const isPlexUrl = (url: string): boolean => {
       return url.includes('plex.tv') || url.includes('watch.plex.tv')
     }
     
     // Check if it's a direct video file
-    const isDirectVideo = (url) => {
+    const isDirectVideo = (url: string): boolean => {
       return /\.(mp4|webm|ogg|mov|avi|mkv)(\?|$)/i.test(url)
     }
     
@@ -155,9 +182,9 @@ export default function ChatInterface({ jobId, query, isSearching, onSearchCompl
 
   // Handle playing video
   const handlePlayVideo = (result: MovieResult) => {
-    setPlayerUrl(result.url)
-    setPlayerTitle(`${result.title} (${result.year})`)
-    setShowPlayer(true)
+    setPlayerUrl(result.url);
+    setPlayerTitle(`${result.title} (${result.year})`);
+    setShowPlayer(true);
   }
 
   const scrollToBottom = () => {
@@ -300,35 +327,48 @@ export default function ChatInterface({ jobId, query, isSearching, onSearchCompl
 
   // Extract the movie result from various possible response structures
   const getMovieResult = (status: JobStatus): MovieResult | null => {
-    console.log('🔧 Debug - getMovieResult called with:', status) // Debug log
+    console.log('🔧 Debug - getMovieResult called with:', status);
     
-    // Check the new format first
-    const result = status.result || status.data?.result || status.movie
-    console.log('🔧 Debug - Checking result field:', result) // Debug log
+    // Check the result field first
+    if (status.result?.url && status.result.title) {
+      return {
+        title: status.result.title,
+        year: status.result.year || 'Unknown',
+        why: status.result.why || '',
+        url: status.result.url,
+        type: 'video',
+        quality: 'HD'
+      };
+    }
     
-    if (result && result.url && result.title) {
-      console.log('🔧 Debug - Found valid result in result field:', result) // Debug log
-      return result
+    // Check data.result for backward compatibility
+    if (status.data?.result?.url && status.data.result.title) {
+      return {
+        title: status.data.result.title,
+        year: status.data.result.year || 'Unknown',
+        why: status.data.result.why || '',
+        url: status.data.result.url,
+        type: 'video',
+        quality: 'HD'
+      };
     }
     
     // Fallback: check if there's a results array with valid data
     if (status.results && status.results.length > 0) {
-      console.log('🔧 Debug - Checking results array:', status.results) // Debug log
-      const firstResult = status.results[0]
+      const firstResult = status.results[0];
       if (firstResult.url && firstResult.title) {
-        const movieResult = {
+        return {
           title: firstResult.title,
           year: firstResult.year || 'Unknown',
           why: firstResult.why || firstResult.type || '',
-          url: firstResult.url
-        }
-        console.log('🔧 Debug - Found valid result in results array:', movieResult) // Debug log
-        return movieResult
+          url: firstResult.url,
+          type: firstResult.type || 'video',
+          quality: firstResult.quality || 'HD'
+        };
       }
     }
     
-    console.log('🔧 Debug - No valid movie result found') // Debug log
-    return null
+    return null;
   }
 
   const movieResult = jobStatus ? getMovieResult(jobStatus) : null
@@ -474,9 +514,13 @@ export default function ChatInterface({ jobId, query, isSearching, onSearchCompl
       )}
 
       {/* Feedback Modal */}
-      {showFeedback && (
+      {showFeedback && movieResult && (
         <FeedbackModal
-          result={null}
+          result={{
+            title: movieResult.title || 'Unknown',
+            type: movieResult.type || 'video',
+            quality: movieResult.quality || 'HD'
+          }}
           onSubmit={handleFeedback}
           onClose={() => setShowFeedback(false)}
         />
