@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
-import { CheckCircleIcon, XCircleIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline'
+import { CheckCircleIcon, ArrowDownTrayIcon, PlayIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import FeedbackModal from './FeedbackModal'
 
 interface ChatInterfaceProps {
@@ -12,22 +12,22 @@ interface ChatInterfaceProps {
   onSearchComplete: () => void
 }
 
-interface SearchResult {
+interface MovieResult {
   title: string
-  type: string
-  file_id: string
-  size: number
-  quality: string
-  verified: boolean
+  year: string | number
+  why: string
+  url: string
 }
 
 interface JobStatus {
   job_id: string
   status: string
   query: string
-  results: SearchResult[]
+  result?: MovieResult
+  results?: any[] // Add this to handle the fallback case
   created_at: string
   completed_at?: string
+  logs?: Array<{type: string, message: string, timestamp: string}>
 }
 
 export default function ChatInterface({ jobId, query, isSearching, onSearchComplete }: ChatInterfaceProps) {
@@ -36,17 +36,129 @@ export default function ChatInterface({ jobId, query, isSearching, onSearchCompl
 
   // Helper to build correct endpoint (uses '/api' proxy when API_BASE is blank)
   const buildUrl = (path: string) => (API_BASE ? `${API_BASE}${path}` : `/api${path}`)
-  // const buildUrl = (path: string, isWebSocket = false) => {
-  //   const base = API_BASE || (isWebSocket ? `${window.location.origin}` : '')
-  //   // Ensure there's exactly one slash between the base and path
-  //   const separator = base.endsWith('/') || path.startsWith('/') ? '' : '/'
-  //   return `${base}${separator}${path}`
-  // }
+  
   const [messages, setMessages] = useState<string[]>([])
   const [jobStatus, setJobStatus] = useState<JobStatus | null>(null)
   const [showFeedback, setShowFeedback] = useState(false)
-  const [selectedResult, setSelectedResult] = useState<SearchResult | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  const [showPlayer, setShowPlayer] = useState(false)
+  const [playerUrl, setPlayerUrl] = useState('')
+  const [playerTitle, setPlayerTitle] = useState('')
+
+  // Enhanced MediaPlayer component for various video sources
+  const EnhancedMediaPlayer = ({ url, title = "Media Player", onClose }) => {
+    // Check if it's a YouTube URL
+    const getYouTubeId = (url) => {
+      const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/
+      const match = url.match(regex)
+      return match ? match[1] : null
+    }
+    
+    // Check if it's a Plex URL
+    const isPlexUrl = (url) => {
+      return url.includes('plex.tv') || url.includes('watch.plex.tv')
+    }
+    
+    // Check if it's a direct video file
+    const isDirectVideo = (url) => {
+      return /\.(mp4|webm|ogg|mov|avi|mkv)(\?|$)/i.test(url)
+    }
+    
+    const videoId = getYouTubeId(url)
+    
+    return (
+      <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden mt-4">
+        <div className="flex justify-between items-center p-4 border-b border-gray-700">
+          <h3 className="text-lg font-semibold text-white">{title}</h3>
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-white transition-colors"
+            >
+              <XMarkIcon className="h-5 w-5" />
+            </button>
+          )}
+        </div>
+        
+        <div className="relative" style={{ paddingBottom: '56.25%' }}>
+          {videoId ? (
+            // YouTube embed
+            <iframe
+              className="absolute top-0 left-0 w-full h-full"
+              src={`https://www.youtube.com/embed/${videoId}?autoplay=0&rel=0`}
+              title={title}
+              frameBorder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            />
+          ) : isDirectVideo(url) ? (
+            // Direct video file
+            <video
+              className="absolute top-0 left-0 w-full h-full"
+              controls
+              preload="metadata"
+            >
+              <source src={url} type="video/mp4" />
+              Your browser does not support the video tag.
+            </video>
+          ) : isPlexUrl(url) ? (
+            // Plex or other streaming service - open in new tab
+            <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center bg-gray-900">
+              <div className="text-center">
+                <PlayIcon className="h-16 w-16 text-blue-400 mx-auto mb-4" />
+                <p className="text-white mb-4">This content is available on an external platform</p>
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn-primary inline-flex items-center space-x-2"
+                >
+                  <PlayIcon className="h-5 w-5" />
+                  <span>Watch on External Site</span>
+                </a>
+              </div>
+            </div>
+          ) : (
+            // Generic iframe attempt
+            <iframe
+              className="absolute top-0 left-0 w-full h-full"
+              src={url}
+              title={title}
+              frameBorder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            />
+          )}
+        </div>
+        
+        <div className="p-4 bg-gray-750">
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-gray-300">
+              {videoId ? 'YouTube Player' : isDirectVideo(url) ? 'Direct Video' : isPlexUrl(url) ? 'External Stream' : 'Web Player'}
+            </div>
+            <div className="flex items-center space-x-2">
+              <a
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-blue-400 hover:text-blue-300"
+              >
+                Open in New Tab
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Handle playing video
+  const handlePlayVideo = (result: MovieResult) => {
+    setPlayerUrl(result.url)
+    setPlayerTitle(`${result.title} (${result.year})`)
+    setShowPlayer(true)
+  }
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -71,10 +183,31 @@ export default function ChatInterface({ jobId, query, isSearching, onSearchCompl
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data)
+        console.log('🔧 Debug - WebSocket message received:', data) // Debug log
+        
         if (data.type === 'log' && data.message) {
           // live reasoning / search steps
           setMessages(prev => [...prev, `🤖 ${data.message}`])
+        } else if (data.type === 'result' && data.result) {
+          // Set the result directly from WebSocket
+          console.log('🔧 Debug - Received result via WebSocket:', data.result) // Debug log
+          setJobStatus(prev => ({
+            ...prev, 
+            result: data.result, 
+            status: 'completed',
+            job_id: jobId || '',
+            query: query,
+            created_at: new Date().toISOString()
+          }))
+          setMessages(prev => [
+            ...prev, 
+            `✅ **Search Complete!** Found playable movie: **${data.result.title}**`
+          ])
+          ws.close()
+          onSearchComplete()
         } else if (data.type === 'status' && data.status === 'completed') {
+          // Legacy completion - still call fetchJobStatus as fallback
+          console.log('🔧 Debug - Received legacy completion status') // Debug log
           ws.close()
           onSearchComplete()
           fetchJobStatus()
@@ -106,33 +239,41 @@ export default function ChatInterface({ jobId, query, isSearching, onSearchCompl
     try {
       // Ensure we always hit the /api/poll endpoint regardless of API_BASE format
       const pollUrl = API_BASE ? `${API_BASE}/api/poll/${jobId}` : `/api/poll/${jobId}`
+      console.log('🔧 Debug - Fetching job status from:', pollUrl) // Debug log
       const response = await fetch(pollUrl)
       if (response.ok) {
         const status = await response.json()
+        console.log('🔧 Debug - Full status response:', status) // Debug log
         setJobStatus(status)
         
-        if (status.results && status.results.length > 0) {
+        // Handle movie result format - check multiple possible paths
+        const movieResult = getMovieResult(status)
+        console.log('🔧 Debug - Extracted movie result:', movieResult) // Debug log
+        
+        if (movieResult && movieResult.url) {
+          console.log('🔧 Debug - Found movie result:', movieResult) // Debug log
           setMessages(prev => [
             ...prev,
-            `✅ **Search Complete!** Found ${status.results.length} result(s):`
+            `✅ **Search Complete!** Found playable movie: **${movieResult.title}**`
           ])
-        } else {
+        } else if (status.status === 'completed' && !movieResult) {
+          console.log('🔧 Debug - Completed but no movie result found') // Debug log
           setMessages(prev => [
             ...prev,
             `❌ **No results found** for "${query}". Try a different search term.`
           ])
+        } else if (status.status === 'error') {
+          setMessages(prev => [
+            ...prev,
+            `❌ **Search failed:** ${status.error || 'Unknown error occurred'}`
+          ])
         }
+      } else {
+        console.log('🔧 Debug - Response not OK:', response.status, response.statusText)
       }
     } catch (error) {
       console.error('Error fetching job status:', error)
     }
-  }
-
-  const handleDownload = (result: SearchResult) => {
-    // Open download in new tab
-    window.open(buildUrl(`/proxy?file_id=${result.file_id}`), '_blank')
-    setSelectedResult(result)
-    setShowFeedback(true)
   }
 
   const handleFeedback = async (verdict: string, reason?: string) => {
@@ -155,8 +296,42 @@ export default function ChatInterface({ jobId, query, isSearching, onSearchCompl
     }
 
     setShowFeedback(false)
-    setSelectedResult(null)
   }
+
+  // Extract the movie result from various possible response structures
+  const getMovieResult = (status: JobStatus): MovieResult | null => {
+    console.log('🔧 Debug - getMovieResult called with:', status) // Debug log
+    
+    // Check the new format first
+    const result = status.result || status.data?.result || status.movie
+    console.log('🔧 Debug - Checking result field:', result) // Debug log
+    
+    if (result && result.url && result.title) {
+      console.log('🔧 Debug - Found valid result in result field:', result) // Debug log
+      return result
+    }
+    
+    // Fallback: check if there's a results array with valid data
+    if (status.results && status.results.length > 0) {
+      console.log('🔧 Debug - Checking results array:', status.results) // Debug log
+      const firstResult = status.results[0]
+      if (firstResult.url && firstResult.title) {
+        const movieResult = {
+          title: firstResult.title,
+          year: firstResult.year || 'Unknown',
+          why: firstResult.why || firstResult.type || '',
+          url: firstResult.url
+        }
+        console.log('🔧 Debug - Found valid result in results array:', movieResult) // Debug log
+        return movieResult
+      }
+    }
+    
+    console.log('🔧 Debug - No valid movie result found') // Debug log
+    return null
+  }
+
+  const movieResult = jobStatus ? getMovieResult(jobStatus) : null
 
   return (
     <div className="card max-w-4xl mx-auto">
@@ -205,49 +380,105 @@ export default function ChatInterface({ jobId, query, isSearching, onSearchCompl
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Results */}
-      {jobStatus?.results && jobStatus.results.length > 0 && (
+      {/* Debug Info (remove this in production) */}
+      {process.env.NODE_ENV === 'development' && jobStatus && (
+        <div className="border border-yellow-500 rounded p-4 mb-4 bg-yellow-50 text-black">
+          <h4 className="font-bold mb-2">🔧 Debug Info:</h4>
+          <pre className="text-xs overflow-x-auto">
+            {JSON.stringify(jobStatus, null, 2)}
+          </pre>
+        </div>
+      )}
+
+      {/* Movie Result */}
+      {movieResult && (
         <div className="border-t border-dark-700 pt-6">
-          <h3 className="text-lg font-semibold mb-4">Search Results</h3>
-          <div className="space-y-3">
-            {jobStatus.results.map((result, index) => (
-              <div key={index} className="bg-dark-700 rounded-lg p-4 flex items-center justify-between">
-                <div className="flex-1">
-                  <h4 className="font-medium text-white mb-1">{result.title}</h4>
-                  <div className="flex items-center space-x-4 text-sm text-gray-400">
-                    <span className="capitalize">{result.type}</span>
-                    <span>{result.quality}</span>
-                    <span>{(result.size / 1024 / 1024).toFixed(1)} MB</span>
-                    {result.verified && (
-                      <span className="flex items-center space-x-1 text-green-400">
-                        <CheckCircleIcon className="h-4 w-4" />
-                        <span>Verified</span>
-                      </span>
-                    )}
-                  </div>
+          <h3 className="text-lg font-semibold mb-4">Found Movie</h3>
+          <div className="bg-dark-700 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex-1">
+                <h4 className="font-medium text-white mb-1">
+                  {movieResult.title} {movieResult.year && `(${movieResult.year})`}
+                </h4>
+                {movieResult.why && (
+                  <p className="text-sm text-gray-400 mb-2">
+                    {movieResult.why}
+                  </p>
+                )}
+                <div className="flex items-center space-x-4 text-sm text-gray-400">
+                  <span className="flex items-center space-x-1 text-green-400">
+                    <CheckCircleIcon className="h-4 w-4" />
+                    <span>Playable Link Found</span>
+                  </span>
                 </div>
+              </div>
+              <div className="flex space-x-2">
                 <button
-                  onClick={() => handleDownload(result)}
+                  onClick={() => handlePlayVideo(movieResult)}
                   className="btn-primary flex items-center space-x-2"
                 >
-                  <ArrowDownTrayIcon className="h-5 w-5" />
-                  <span>Download</span>
+                  <PlayIcon className="h-5 w-5" />
+                  <span>Watch Now</span>
                 </button>
+                <a
+                  href={movieResult.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn-secondary flex items-center space-x-2"
+                >
+                  <span>Open Link</span>
+                </a>
               </div>
-            ))}
+            </div>
+            
+            {/* Display the found URL */}
+            <div className="mt-3 p-3 bg-gray-800 rounded text-sm">
+              <span className="text-gray-400">Playable URL: </span>
+              <a 
+                href={movieResult.url} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-blue-400 hover:text-blue-300 break-all"
+              >
+                {movieResult.url}
+              </a>
+            </div>
+          </div>
+          
+          {/* Video Player */}
+          {showPlayer && (
+            <EnhancedMediaPlayer
+              url={playerUrl}
+              title={playerTitle}
+              onClose={() => setShowPlayer(false)}
+            />
+          )}
+        </div>
+      )}
+
+      {/* No Results Message */}
+      {jobStatus && jobStatus.status === 'completed' && !movieResult && !isSearching && (
+        <div className="border-t border-dark-700 pt-6">
+          <div className="bg-dark-700 rounded-lg p-6 text-center">
+            <div className="text-gray-400 mb-2">
+              <svg className="h-12 w-12 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 12h6m-6-4h6m2 5.291A7.962 7.962 0 0112 15c-2.35 0-4.438-.896-6-2.364" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-medium text-white mb-2">No Movies Found</h3>
+            <p className="text-gray-400">
+              We couldn't find any playable movies for "{query}". Try searching with different keywords or movie titles.
+            </p>
           </div>
         </div>
       )}
 
       {/* Feedback Modal */}
-      {showFeedback && selectedResult && (
+      {showFeedback && (
         <FeedbackModal
-          result={selectedResult}
+          result={null}
           onSubmit={handleFeedback}
-          onClose={() => {
-            setShowFeedback(false)
-            setSelectedResult(null)
-          }}
+          onClose={() => setShowFeedback(false)}
         />
       )}
     </div>

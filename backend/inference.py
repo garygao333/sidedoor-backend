@@ -174,12 +174,13 @@ class LogHandler(BaseCallbackHandler):
         self._add(f"📋 Tool Result: {short}", "debug")
 
 # --------------- state dataclass --------------------------------------------
+
 @dataclass
 class S:
     query: str
     iter: int = 0 
     bad_urls: List[str] = field(default_factory=list)
-    logs: List[Dict[str, Any]] = field(default_factory=list)
+    logs: List[Dict[str, Any]] = field(default_factory=list)  # Single definition only
     websocket_manager: Optional[Any] = None   
     job_id: str = ""
     scratchpad: List[Dict[str, str]] = field(default_factory=list)
@@ -188,9 +189,7 @@ class S:
     candidates: List[str] = field(default_factory=list)
     results: Dict[str, Any] = field(default_factory=dict)
     verified: List[Any] = field(default_factory=list)
-    best: Optional[str] = None  # Single definition
-
-    logs: List[Dict[str, str]] = field(default_factory=list)
+    best: Optional[str] = None
 
     async def log(self, message: str, level: str = "info"):
         ts = dt.datetime.utcnow().isoformat()
@@ -202,6 +201,35 @@ class S:
                 self.job_id,
                 {"type": "log", "message": message, "timestamp": ts, "level": level},
             )
+
+# @dataclass
+# class S:
+#     query: str
+#     iter: int = 0 
+#     bad_urls: List[str] = field(default_factory=list)
+#     # logs: List[Dict[str, Any]] = field(default_factory=list)
+#     websocket_manager: Optional[Any] = None   
+#     job_id: str = ""
+#     scratchpad: List[Dict[str, str]] = field(default_factory=list)
+#     last_obs: str = ""
+#     search_terms: List[str] = field(default_factory=list)
+#     candidates: List[str] = field(default_factory=list)
+#     results: Dict[str, Any] = field(default_factory=dict)
+#     verified: List[Any] = field(default_factory=list)
+#     best: Optional[str] = None  # Single definition
+
+#     logs: List[Dict[str, str]] = field(default_factory=list)
+
+#     async def log(self, message: str, level: str = "info"):
+#         ts = dt.datetime.utcnow().isoformat()
+#         self.logs.append({"type": level, "message": message, "timestamp": ts})
+#         logger.info(f"[{level.upper()}] {message}")
+
+#         if self.websocket_manager:
+#             await self.websocket_manager.broadcast(
+#                 self.job_id,
+#                 {"type": "log", "message": message, "timestamp": ts, "level": level},
+#             )
 
 # --------------- build VidScout agent ---------------------------------------
 # vid_agent: AgentExecutor = initialize_agent(
@@ -284,7 +312,7 @@ async def run_vid_agent(prompt: str, callbacks: list) -> str:
         result = await asyncio.to_thread(
             vid_agent.invoke,
             {"input": prompt, "prefix": PREFIX.strip()},
-            config={"callbacks": callbacks},     # ✅ now taken into account
+            config={"callbacks": callbacks},     # now taken into account
         )
         return result.get("output", "")
     except Exception as e:
@@ -293,9 +321,14 @@ async def run_vid_agent(prompt: str, callbacks: list) -> str:
 
 # --------------- driver ------------------------------------------------------
 
-async def run_backend(user_query: str) -> Dict[str, Any]:
+async def run_backend(user_query: str, websocket_manager=None, job_id: str = "") -> Dict[str, Any]:
+    
     try:
-        state = S(query=user_query)
+        state = S(
+            query=user_query,
+            websocket_manager=websocket_manager,  # Now this will be set!
+            job_id=job_id  # Now this will be set!
+        )
         
         await state.log(f"Starting search: {user_query}")
 
@@ -312,6 +345,10 @@ async def run_backend(user_query: str) -> Dict[str, Any]:
             await state.log("FilmScout returned nothing", "error")
             return {"status": "error", "logs": state.logs}
 
+        # Variables to track the successful movie and link
+        successful_movie = None
+        found_link = None
+
         for mv in movies:
             try:
                 await state.log(f"Trying {mv.get('title', 'Unknown')} ({mv.get('year', 'Unknown')}) …")
@@ -326,7 +363,6 @@ async def run_backend(user_query: str) -> Dict[str, Any]:
                 result: str = await run_vid_agent(prompt, [cb])
 
                 # After agent completes, merge any additional logs from callback
-                # (In case they got disconnected)
                 if hasattr(cb, 'state') and cb.state.logs:
                     for log_entry in cb.state.logs:
                         if log_entry not in state.logs:
@@ -343,6 +379,8 @@ async def run_backend(user_query: str) -> Dict[str, Any]:
 
                 if link:
                     state.best = link
+                    successful_movie = mv  # Store the successful movie
+                    found_link = link      # Store the found link
                     await state.log(f"Success → {link}", "success")
                     break
                     
@@ -351,24 +389,142 @@ async def run_backend(user_query: str) -> Dict[str, Any]:
                 await state.log(f"Error processing movie {mv}: {e}", "error")
                 continue
 
-        if not state.best:
+        if not found_link or not successful_movie:
             await state.log("No playable link found for any suggestion", "error")
+            # Send error via WebSocket
+            if state.websocket_manager:
+                await state.websocket_manager.broadcast(
+                    state.job_id,
+                    {"type": "error", "message": "No playable movies found"}
+                )
             return {"status": "error", "logs": state.logs}
 
-        return {
-            "status": "completed",
-            "result": {
-                "title": mv.get("title", "Unknown"),
-                "year":  mv.get("year", "Unknown"),
-                "why":   mv.get("why", ""),
-                "url":   state.best,
-            },
-            "logs": state.logs,  # This should now contain all the detailed logs
+        # Build the final result
+        final_result = {
+            "title": successful_movie.get("title", "Unknown"),
+            "year":  successful_movie.get("year", "Unknown"), 
+            "why":   successful_movie.get("why", ""),
+            "url":   found_link,
         }
         
+        # Right before the WebSocket broadcast, add this:
+        print(f"🔧 About to broadcast result via WebSocket: {state.websocket_manager}")
+        print(f"🔧 Job ID: {state.job_id}")
+        print(f"🔧 Result to broadcast: {final_result}")
+
+        # Send result via WebSocket
+        if state.websocket_manager:
+            print("Broadcasting result...")
+            await state.websocket_manager.broadcast(
+                state.job_id,
+                {
+                    "type": "result", 
+                    "result": final_result
+                }
+            )
+            print("Broadcast complete!")
+        else:
+            print("No websocket_manager available!")
+        
+        # Debug print to see what we're returning
+        print(f"Backend returning: {json.dumps(final_result, indent=2)}")
+        
+        # Still return for any other consumers
+        return {
+            "status": "completed",
+            "result": final_result,
+            "logs": state.logs,
+        }
     except Exception as e:
         logger.error(f"Unexpected error in run_backend: {e}", exc_info=True)
         return {"status": "error", "error": str(e), "logs": getattr(state, 'logs', [])}
+
+# async def run_backend(user_query: str) -> Dict[str, Any]:
+#     try:
+#         state = S(query=user_query)
+        
+#         await state.log(f"Starting search: {user_query}")
+
+#         try:
+#             movies = await recommend_titles(user_query)
+#             await state.log(f"Planner step: {movies}")
+#             logger.info(f"recommend_titles returned: {movies}")
+#         except Exception as e:
+#             logger.error(f"Error in recommend_titles: {e}", exc_info=True)
+#             await state.log(f"Error in recommend_titles: {e}", "error")
+#             return {"status": "error", "logs": state.logs, "error": str(e)}
+        
+#         if not movies:
+#             await state.log("FilmScout returned nothing", "error")
+#             return {"status": "error", "logs": state.logs}
+
+#         for mv in movies:
+#             try:
+#                 await state.log(f"Trying {mv.get('title', 'Unknown')} ({mv.get('year', 'Unknown')}) …")
+                
+#                 # Create callback INSIDE the loop to ensure fresh state reference
+#                 cb = LogHandler(state)
+                
+#                 seed = f"\"{mv.get('title', '')}\" {mv.get('year', '')} full movie watch online"
+#                 prompt = (f"Find a playable link for \"{mv.get('title', '')}\" ({mv.get('year', '')}). "
+#                           f"Start with the query: {seed}")
+
+#                 result: str = await run_vid_agent(prompt, [cb])
+
+#                 # After agent completes, merge any additional logs from callback
+#                 # (In case they got disconnected)
+#                 if hasattr(cb, 'state') and cb.state.logs:
+#                     for log_entry in cb.state.logs:
+#                         if log_entry not in state.logs:
+#                             state.logs.append(log_entry)
+
+#                 # parse VidScout response
+#                 link = None
+#                 if isinstance(result, str):
+#                     if result.lstrip().upper().startswith("FINISH:"):
+#                         link = result.split(":", 1)[1].strip()
+#                     else:
+#                         m = URL_RE.search(result)
+#                         link = m.group(0) if m else None
+
+#                 if link:
+#                     state.best = link
+#                     await state.log(f"Success → {link}", "success")
+#                     break
+                    
+#             except Exception as e:
+#                 logger.error(f"Error processing movie {mv}: {e}", exc_info=True)
+#                 await state.log(f"Error processing movie {mv}: {e}", "error")
+#                 continue
+
+#         if not state.best:
+#             await state.log("No playable link found for any suggestion", "error")
+#             return {"status": "error", "logs": state.logs}
+
+#         # return {
+#         #     "status": "completed",
+#         #     "result": {
+#         #         "title": mv.get("title", "Unknown"),
+#         #         "year":  mv.get("year", "Unknown"),
+#         #         "why":   mv.get("why", ""),
+#         #         "url":   state.best,
+#         #     },
+#         #     "logs": state.logs,  # This should now contain all the detailed logs
+#         # }
+#         return {
+#             "status": "completed",
+#             "result": {
+#                 "title": mv.get("title", "Unknown"),
+#                 "year":  mv.get("year", "Unknown"), 
+#                 "why":   mv.get("why", ""),
+#                 "url":   link,
+#             },
+#             "logs": state.logs,
+#         }
+        
+#     except Exception as e:
+#         logger.error(f"Unexpected error in run_backend: {e}", exc_info=True)
+#         return {"status": "error", "error": str(e), "logs": getattr(state, 'logs', [])}
 
 
 main = run_backend
