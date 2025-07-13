@@ -1,180 +1,187 @@
-import datetime as dt
-import os, sys, textwrap, re, json, time, asyncio, tempfile, pathlib, hashlib, warnings
-from pathlib import Path
-from typing import Dict, List, Any, Optional, Union, TypedDict
+import os, re, json, time, asyncio, datetime as dt, hashlib, textwrap, logging
 from dataclasses import dataclass, field
-import logging
-import shutil
+from typing import List, Dict, Any, Optional
 
-# ──────────────────────────────────────────────  basic setup
+# --------------- basic setup -------------------------------------------------
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "gcs_key.json"
 if "OPENAI_API_KEY" not in os.environ:
-    raise RuntimeError("OPENAI_API_KEY environment variable not set")
+    raise RuntimeError("OPENAI_API_KEY env-var is required")
+if "EXA_API_KEY" not in os.environ:
+    raise RuntimeError("EXA_API_KEY env-var is required")
 
-GCS_BUCKET = os.getenv("GCS_BUCKET", "merg-testing")
-DOWNLOAD_DIR = pathlib.Path("downloads")
-DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
+# --------------- third-party imports ----------------------------------------
+import httpx
+from exa_py               import Exa
+from langchain.agents     import Tool, initialize_agent, AgentType, AgentExecutor
+from langchain_openai     import ChatOpenAI
+from langchain_core.prompts import ChatPromptTemplate
+from langchain.callbacks.base import BaseCallbackHandler
 
-TOPK, MAX_WORKERS, MAX_ITER, WORKER_STEPS = 3, 1, 4, 3
-LINK_LIMIT = 100
-DEBUG = True
+# --------------- tools -------------------------------------------------------
+exa = Exa(api_key=os.getenv("EXA_API_KEY"))
+URL_RE = re.compile(r'https?://\S+')
 
-# ──────────────────────────────────────────────  imports that rely on env above
-import ray, nest_asyncio
-from playwright.async_api import async_playwright
-from duckduckgo_search import DDGS
-from langchain_openai import ChatOpenAI
-from langchain_core.tools import tool
-from langgraph.graph import StateGraph
-from google.cloud import storage
+def search_exa(query: str, k: int = 20) -> str:
+    """Return up-to-k URLs (newline-separated)."""
+    return "\n".join(r.url for r in exa.search(query=query, num_results=k).results)
 
-nest_asyncio.apply()
-ray.shutdown()
-ray.init(local_mode=True, num_cpus=MAX_WORKERS, ignore_reinit_error=True)
+PLAYABLE_CT = re.compile(
+    r"^(video/|application/(x-mpegURL|vnd\.apple\.mpegurl))", re.I)
+ARCHIVE_OK  = re.compile(
+    r"https?://(?:archive\.org|youtu\.be|youtube\.com|vimeo\.com)", re.I)
 
-TINY_LLM = ChatOpenAI(model="gpt-3.5-turbo-0125", temperature=0.2)
-PLAN_LLM = ChatOpenAI(model="gpt-4o-mini",        temperature=0.0)
+WHITELIST = re.compile(
+    r"https?://("
+    r"(www\.)?youtube\.com/"
+    r"|youtu\.be/"
+    r"|archive\.org/"
+    r"|player\.vimeo\.com/"
+    r"|tubitv\.com/"
+    r"|plex\.tv/"
+    r"|watch\.plex\.tv/"
+    r"|.*\.roku\.com/"
+    r")",
+    re.I,
+)
 
-# ──────────────────────────────────────────────  helpers
-def extract_json_list(text: str) -> List[str]:
-    m = re.search(r"\[[^\]]+\]", text, re.S)
-    if not m:
-        return []
+PLAYABLE_CT = re.compile(r"^(video/|application/(x-mpegURL|vnd\.apple\.mpegurl))", re.I)
+
+
+async def _head_ok(url: str) -> str:
+    if WHITELIST.search(url):
+        return "OK"
+
+    #  try HEAD
     try:
-        return json.loads(m.group(0))
+        async with httpx.AsyncClient(
+            timeout=3,
+            follow_redirects=True,
+            headers={"User-Agent": "Mozilla/5.0"},   # fewer 403s
+        ) as c:
+            r = await c.head(url)
+        # Some sites answer 405 (Method Not Allowed) to HEAD
+        if r.status_code in (301, 302):
+            # follow Location once more
+            loc = r.headers.get("location")
+            return await _head_ok(loc) if loc else "BAD"
+        if PLAYABLE_CT.search(r.headers.get("content-type", "")):
+            return "OK"
+        # If HEAD failed, fall back to GET first 2 KB
+        async with httpx.AsyncClient(timeout=4, follow_redirects=True) as c:
+            r = await c.get(url, headers={"Range": "bytes=0-2047"})
+        if PLAYABLE_CT.search(r.headers.get("content-type", "")):
+            return "OK"
     except Exception:
-        return []
+        pass
+    return "BAD"
 
-async def click_reason(page):
-    links = await page.eval_on_selector_all(
-        "a[href]",
-        f"els => els.slice(0, {LINK_LIMIT}).map(e => {{return {{text:e.innerText.trim(), href:e.href}}}})"
+
+def check_playable(url: str) -> str:          # sync wrapper for LangChain
+    return asyncio.run(_head_ok(url))
+
+tools = [
+    Tool(name="search_exa",
+         func=search_exa,
+         description="Search the web with Exa. Input: plain query string."),
+    Tool(name="check_playable",
+         func=check_playable,
+         description="HEAD-checks a URL. Returns 'OK' or 'BAD'.")
+]
+
+# --------------- LLMs --------------------------------------------------------
+VID_LLM   = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.3)
+REC_LLM   = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0.4)
+
+REC_PROMPT = ChatPromptTemplate.from_messages([
+    ("system",
+     """You are FilmScout. Suggest **2-3** movies the user can *legally watch online*
+(public-domain or Creative-Commons).  Return EACH on its own JSON line, e.g.
+
+{{"title":"The Hitch-Hiker","year":1953,"why":"Public-domain noir classic"}}"""),
+    ("human", "{question}")
+])
+
+async def recommend_titles(question: str) -> List[Dict]:
+    raw = await REC_LLM.ainvoke(
+        REC_PROMPT.format_prompt(question=question).to_messages()
     )
-    title = await page.title()
-    prompt = textwrap.dedent(f"""
-        You are a focused helper. Your job is to choose the ONE link that is
-        most likely a direct media download (mp4, mkv, avi, torrent) or a magnet link.
 
-        Page title: {title}
-        Links (first 20):
-        {json.dumps(links, indent=2)}
+    # pick only lines that look like JSON dicts
+    candidates = [
+        json.loads(line)
+        for line in raw.content.splitlines()
+        if line.lstrip().startswith("{")
+    ]
 
-        Answer with EITHER the single link OR the word STOP.
-    """).strip()
+    # ⇢ keep only dicts that have BOTH 'title' and 'year'
+    movies = [
+        m for m in candidates
+        if isinstance(m, dict) and "title" in m and "year" in m
+    ]
 
-    resp = (await TINY_LLM.ainvoke(prompt)).content.strip()
+    return movies[:3] 
 
-    if DEBUG:
-        print("\n─── sub-LLM PROMPT ─────────────────────────────────────")
-        print(prompt)
-        print("─── sub-LLM RESP ───────────────────────────────────────")
-        print(resp, "\n")
+# --------------- VidScout prompt --------------------------------------------
+PREFIX = """
+You are **VidScout**.
 
-    return resp.split()[0]
+1. On every turn call `search_exa` **once** with a 15-25 token query
+   that should surface a single film.
+2. Pick ONE candidate URL and call `check_playable(url)`.
+3. As soon as `check_playable` returns **OK**, reply exactly:
 
-async def worker_job(url: str) -> dict:
-    t0 = time.time()
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(
-            headless=True,
-            args=[
-                "--no-sandbox", "--disable-dev-shm-usage", "--single-process",
-                "--no-zygote", "--disable-gpu", "--disable-software-rasterizer",
-                "--disable-extensions", "--disable-setuid-sandbox",
-            ],
-        )
-        page = await browser.new_page()
-        try:
-            await page.goto(url, timeout=45_000)
-            if DEBUG:
-                print(f"Visiting {page.url[:90]}")
+FINISH: <url>
 
-            for _ in range(WORKER_STEPS):
-                if page.url.startswith("magnet:") or re.search(r"\.(mp4|mkv|avi|torrent)$", page.url):
-                    break
-                href = await click_reason(page)
-                if DEBUG:
-                    print("   ↪ click →", href[:90])
-                if href.lower().startswith("stop"):
-                    break
-                await page.goto(href, timeout=30_000)
+Do *not* call any more tools after that. Think step-by-step.
+"""
+SUFFIX = "Remember: stop as soon as you have a playable link."
 
-            final_url = page.url
-            if not (final_url.startswith("magnet:") or re.search(r"\.(mp4|mkv|avi|torrent)$", final_url)):
-                await browser.close()
-                return {"status": "failed", "reason": "no_direct_link"}
+# --------------- logging callback -------------------------------------------
 
-            size, path = -1, None
-            if not final_url.startswith("magnet:"):
-                resp = await page.context.request.get(final_url, timeout=60_000)
-                if not resp.ok:
-                    await browser.close()
-                    return {"status": "failed", "reason": f"http {resp.status}"}
+class LogHandler(BaseCallbackHandler):
+    def __init__(self, state): 
+        self.state = state
 
-                data = await resp.body()
-                ext = pathlib.Path(final_url).suffix or ".bin"
-                name = hashlib.sha256(final_url.encode()).hexdigest()[:40] + ext
-                dest = DOWNLOAD_DIR / name
-                dest.write_bytes(data)
-                size, path = dest.stat().st_size, str(dest)
+    def _add(self, msg: str, lvl: str = "info"):
+        ts = dt.datetime.utcnow().isoformat()
+        log_entry = {"type": lvl, "message": msg, "timestamp": ts}
+        
+        # Add to state logs
+        self.state.logs.append(log_entry)
+        logger.info(msg)
 
-                # upload to GCS
-                bucket = storage.Client().bucket(GCS_BUCKET)
-                blob = bucket.blob(name)
-                blob.upload_from_filename(dest)
-                signed_url = blob.generate_signed_url(
-                    expiration=dt.timedelta(days=1), method="GET"
+        # Broadcast if websocket available
+        if self.state.websocket_manager:
+            asyncio.create_task(
+                self.state.websocket_manager.broadcast(
+                    self.state.job_id,
+                    {"type": "log", "message": msg, "timestamp": ts, "level": lvl}
                 )
+            )
 
-                await browser.close()
-                return dict(
-                    status="ok",
-                    url=final_url,
-                    path=path,
-                    gcs_url=signed_url,
-                    size=size,
-                    hash=hashlib.sha256(final_url.encode()).hexdigest(),
-                    elapsed=round(time.time() - t0, 2),
-                )
-        except Exception as e:
-            await browser.close()
-            return {"status": "failed", "reason": repr(e)}
+    def on_llm_end(self, response, **kw):
+        text = response.generations[0][0].text.strip()
+        self._add(f"🧠 LLM Reasoning: {text}", "debug")
 
-@ray.remote
-def site_worker(url: str):
-    return asyncio.run(worker_job(url))
+    def on_tool_start(self, tool, input_str, **kw):
+        tool_name = tool.name if hasattr(tool, 'name') else str(tool)
+        self._add(f"🔧 Calling {tool_name}: {input_str}", "debug")
 
-@tool(description="DuckDuckGo search (JSON API) with exponential back-off.")
-def web_search(query: str, max_results: int = TOPK) -> list:
-    backoff, urls = 2, []
-    with DDGS() as d:
-        for attempt in range(6):
-            try:
-                urls = [r["href"] for r in d.text(query, max_results=max_results, backend="lite")]
-                if urls:
-                    break
-            except Exception:
-                if DEBUG:
-                    print(f"DDG timeout → retrying in {backoff}s")
-                time.sleep(backoff)
-                backoff *= 2
-    return urls[:max_results]
+    def on_tool_end(self, output, **kw):
+        short = output if len(output) < 200 else output[:197] + "..."
+        self._add(f"📋 Tool Result: {short}", "debug")
 
-@tool(description="Spawn a headless browser worker that tries to fetch direct media.")
-def fetch_media(url: str) -> dict:
-    return ray.get(site_worker.remote(url))
+# --------------- state dataclass --------------------------------------------
 
-# ──────────────────────────────────────────────  state
 @dataclass
 class S:
     query: str
-    iter: int
+    iter: int = 0 
     bad_urls: List[str] = field(default_factory=list)
-    websocket_manager: Any = None
-    next: Optional[str] = None
+    logs: List[Dict[str, Any]] = field(default_factory=list)  # Single definition only
+    websocket_manager: Optional[Any] = None   
     job_id: str = ""
     scratchpad: List[Dict[str, str]] = field(default_factory=list)
     last_obs: str = ""
@@ -182,8 +189,7 @@ class S:
     candidates: List[str] = field(default_factory=list)
     results: Dict[str, Any] = field(default_factory=dict)
     verified: List[Any] = field(default_factory=list)
-    best: Dict[str, Any] = field(default_factory=dict)
-    logs: List[Dict[str, str]] = field(default_factory=list)
+    best: Optional[str] = None
 
     async def log(self, message: str, level: str = "info"):
         ts = dt.datetime.utcnow().isoformat()
@@ -196,175 +202,335 @@ class S:
                 {"type": "log", "message": message, "timestamp": ts, "level": level},
             )
 
-# ──────────────────────────────────────────────  graph nodes (now async!)
-async def planner(s: S):
-    if not s.scratchpad:
-        s.scratchpad, s.search_terms, s.last_obs = [], [s.query], "Bootstrapping."
+# @dataclass
+# class S:
+#     query: str
+#     iter: int = 0 
+#     bad_urls: List[str] = field(default_factory=list)
+#     # logs: List[Dict[str, Any]] = field(default_factory=list)
+#     websocket_manager: Optional[Any] = None   
+#     job_id: str = ""
+#     scratchpad: List[Dict[str, str]] = field(default_factory=list)
+#     last_obs: str = ""
+#     search_terms: List[str] = field(default_factory=list)
+#     candidates: List[str] = field(default_factory=list)
+#     results: Dict[str, Any] = field(default_factory=dict)
+#     verified: List[Any] = field(default_factory=list)
+#     best: Optional[str] = None  # Single definition
 
-    history = "\n".join(
-        f"Thought: {t['thought']}\nAction: {t['action']}\nObservation: {t['observation']}"
-        for t in s.scratchpad
-    ) or "None yet."
+#     logs: List[Dict[str, str]] = field(default_factory=list)
 
-    prompt = textwrap.dedent(f"""
-        You are a research agent tasked with finding publicly available sources.
+#     async def log(self, message: str, level: str = "info"):
+#         ts = dt.datetime.utcnow().isoformat()
+#         self.logs.append({"type": level, "message": message, "timestamp": ts})
+#         logger.info(f"[{level.upper()}] {message}")
 
-        Title / query: {s.query}
+#         if self.websocket_manager:
+#             await self.websocket_manager.broadcast(
+#                 self.job_id,
+#                 {"type": "log", "message": message, "timestamp": ts, "level": level},
+#             )
 
-        Scratchpad so far:
-        {history}
+# --------------- build VidScout agent ---------------------------------------
+# vid_agent: AgentExecutor = initialize_agent(
+#     tools=tools,
+#     llm=VID_LLM,
+#     agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
+#     verbose=False,
+#     max_iterations=4,
+#     handle_parsing_errors=True,
+#     agent_kwargs={
+#         "prefix": PREFIX, 
+#         "suffix": SUFFIX,
+#         "input_variables": ["input"]  # Add this line
+#     }
+# )
 
-        Latest observation:
-        {s.last_obs}
+from langchain.agents.react.agent import create_react_agent
+from langchain.agents import AgentExecutor
+from langchain_core.prompts import PromptTemplate
 
-        Respond with *either*
+# Use a simple PromptTemplate instead of ChatPromptTemplate
+prompt_template = PromptTemplate.from_template("""
+{prefix}
 
-        1. Thought: …\n   Action: Search["q1", "q2"]
-        2. Thought: …\n   Action: Finish["url"]
-    """).strip()
+You have access to the following tools:
 
-    resp = (await PLAN_LLM.ainvoke(prompt)).content.strip()
-    await s.log("Planner step")
+{tools}
 
-    thought = re.search(r"Thought:\s*(.*)", resp, re.S)
-    action = re.search(r"Action:\s*(.*)", resp, re.S)
-    if not (thought and action):
-        s.last_obs = "Planner produced malformed output – retrying."
-        return s
+Use the following format:
 
-    thought, action = thought.group(1).strip(), action.group(1).strip()
-    s.scratchpad.append({"thought": thought, "action": action, "observation": s.last_obs})
+Question: the input question you must answer
+Thought: you should always think about what to do
+Action: the action to take, should be one of [{tool_names}]
+Action Input: the input to the action
+Observation: the result of the action
+... (this Thought/Action/Action Input/Observation can repeat N times)
+Thought: I now know the final answer
+Final Answer: the final answer to the original input question
 
-    if action.startswith("Search"):
-        queries = extract_json_list(action) or [s.query]
-        queries = [q if re.search(r"(mp4|mkv|torrent|download)", q, re.I) else q + " download" for q in queries]
-        s.search_terms = queries
-    elif action.startswith("Finish"):
-        url = extract_json_list(action)[0]
-        s.best = {"url": url}
-        s.verified = [("manual", s.best)]
-    return s
+Begin!
 
-async def search(s: S):
-    bad = set(s.bad_urls or [])
-    urls = []
-    for q in s.search_terms:
-        urls += web_search.run(q, max_results=TOPK)
-    urls = [u for u in urls if u not in bad]
+Question: {input}
+Thought:{agent_scratchpad}
+""")
 
-    if not urls:
-        s.last_obs, s.iter = "No more candidates.", MAX_ITER
-        await s.log("Search produced no new URLs", "debug")
-        return s
+# Create the agent with the simple prompt
+react_chain = create_react_agent(
+    llm=VID_LLM,
+    tools=tools,
+    prompt=prompt_template,
+)
 
-    s.candidates = urls[:MAX_WORKERS]
-    await s.log(f"Search queued {len(s.candidates)} candidate URL(s)", "debug")
-    if DEBUG:
-        print("CANDIDATES"); [print(" •", u[:100]) for u in s.candidates]
-    return s
+vid_agent: AgentExecutor = AgentExecutor(
+    agent=react_chain,
+    tools=tools,
+    verbose=False,
+    max_iterations=4,
+    handle_parsing_errors=True,
+)
 
-async def fetch(s: S):
-    results = {}
-    for u in s.candidates:
-        try:
-            results[u] = fetch_media.run(u)
-        except Exception as e:
-            if DEBUG:
-                print(f"⚠️ worker failed for {u[:80]} → {e}")
-            results[u] = {"status": "failed", "reason": repr(e)}
-    s.results = results
-    await s.log("Fetch step complete", "debug")
-    if DEBUG:
-        print("\n⬇️ FETCH RESULTS")
-        [print(u[:80], "→", r.get("status", "?")) for u, r in s.results.items()]
-    return s
+# Keep the run_vid_agent function simple
+# async def run_vid_agent(prompt: str, callbacks: list) -> str:
+#     try:
+#         result = await asyncio.to_thread(
+#             vid_agent.invoke,
+#             {
+#                 "input": prompt,
+#                 "prefix": PREFIX.strip(),
+#             },
+#             {"callbacks": callbacks},
+#         )
+#         return result.get("output", "")
+#     except Exception as e:
+#         logger.error(f"VidAgent error: {e}")
+#         return f"Error: {e}"
 
-async def verify(s: S):
-    ok, lines = [], []
-    for u, r in s.results.items():
-        if r["status"] == "ok":
-            ok.append((u, r))
-            lines.append(f"✔ {u.split('/')[2]}")
-        else:
-            lines.append(f"✘ {u.split('/')[2]} ({r.get('reason', '?')})")
-    s.verified, s.last_obs = ok, "; ".join(lines)
-    await s.log(f"Verify step: {len(ok)} passed", "debug")
-    return s
-
-async def rank(s: S):
-    if s.verified:
-        url, r = max(s.verified, key=lambda x: (x[1].get("size", 0), x[0]))
-        s.best = {"url": url, **r}
-        await s.log(f"Rank chose {url}", "debug")
-    return s
-
-async def gate(s: S):
-    s.iter += 1
-    s.next = "exit" if (s.best or s.verified or s.iter >= MAX_ITER) else "planner"
-    await s.log(f"Gate → {s.next} (iter {s.iter})", "debug")
-    return s
-
-# ──────────────────────────────────────────────  build graph
-g = StateGraph(S)
-g.add_node("planner", planner)
-g.add_node("search",  search)
-g.add_node("fetch",   fetch)
-g.add_node("verify",  verify)
-g.add_node("rank",    rank)
-g.add_node("gate",    gate)
-g.add_node("exit",    lambda s: s)
-
-g.add_edge("planner", "search")
-g.add_edge("search",  "fetch")
-g.add_edge("fetch",   "verify")
-g.add_edge("verify",  "rank")
-g.add_edge("rank",    "gate")
-g.add_conditional_edges("gate", lambda s: s.next, {"planner": "planner", "exit": "exit"})
-g.set_entry_point("planner")
-orch = g.compile()
-
-# ──────────────────────────────────────────────  driver
-async def main(init: S) -> Dict[str, Any]:
+async def run_vid_agent(prompt: str, callbacks: list) -> str: 
     try:
-        await init.log(f"Starting search: {init.query}")
-        out = await orch.ainvoke(init, config={"recursion_limit": 40})
+        # callbacks must go in the keyword-only `config` argument
+        result = await asyncio.to_thread(
+            vid_agent.invoke,
+            {"input": prompt, "prefix": PREFIX.strip()},
+            config={"callbacks": callbacks},     # now taken into account
+        )
+        return result.get("output", "")
+    except Exception as e:
+        logger.error(f"VidAgent error: {e}")
+        return f"Error: {e}"
 
-        best = out.get("best", {})
-        if best:
-            n_ok = len(out.get("verified", []))
-            await init.log(f"Search completed successfully. Found {n_ok} valid result(s).", "success")
+# --------------- driver ------------------------------------------------------
 
-            if best.get("gcs_url") and init.websocket_manager:
-                await init.websocket_manager.broadcast(init.job_id, {
-                    "type": "result",
-                    "result": {
-                        "title": best.get('title', 'Untitled'),
-                        "url": best["gcs_url"],
-                        "size": best.get("size"),
-                        "description": best.get("description", "")
-                    }
-                })
+async def run_backend(user_query: str, websocket_manager=None, job_id: str = "") -> Dict[str, Any]:
+    
+    try:
+        state = S(
+            query=user_query,
+            websocket_manager=websocket_manager,  # Now this will be set!
+            job_id=job_id  # Now this will be set!
+        )
+        
+        await state.log(f"Starting search: {user_query}")
 
+        try:
+            movies = await recommend_titles(user_query)
+            await state.log(f"Planner step: {movies}")
+            logger.info(f"recommend_titles returned: {movies}")
+        except Exception as e:
+            logger.error(f"Error in recommend_titles: {e}", exc_info=True)
+            await state.log(f"Error in recommend_titles: {e}", "error")
+            return {"status": "error", "logs": state.logs, "error": str(e)}
+        
+        if not movies:
+            await state.log("FilmScout returned nothing", "error")
+            return {"status": "error", "logs": state.logs}
+
+        # Variables to track the successful movie and link
+        successful_movie = None
+        found_link = None
+
+        for mv in movies:
+            try:
+                await state.log(f"Trying {mv.get('title', 'Unknown')} ({mv.get('year', 'Unknown')}) …")
+                
+                # Create callback INSIDE the loop to ensure fresh state reference
+                cb = LogHandler(state)
+                
+                seed = f"\"{mv.get('title', '')}\" {mv.get('year', '')} full movie watch online"
+                prompt = (f"Find a playable link for \"{mv.get('title', '')}\" ({mv.get('year', '')}). "
+                          f"Start with the query: {seed}")
+
+                result: str = await run_vid_agent(prompt, [cb])
+
+                # After agent completes, merge any additional logs from callback
+                if hasattr(cb, 'state') and cb.state.logs:
+                    for log_entry in cb.state.logs:
+                        if log_entry not in state.logs:
+                            state.logs.append(log_entry)
+
+                # parse VidScout response
+                link = None
+                if isinstance(result, str):
+                    if result.lstrip().upper().startswith("FINISH:"):
+                        link = result.split(":", 1)[1].strip()
+                    else:
+                        m = URL_RE.search(result)
+                        link = m.group(0) if m else None
+
+                if link:
+                    state.best = link
+                    successful_movie = mv  # Store the successful movie
+                    found_link = link      # Store the found link
+                    await state.log(f"Success → {link}", "success")
+                    break
+                    
+            except Exception as e:
+                logger.error(f"Error processing movie {mv}: {e}", exc_info=True)
+                await state.log(f"Error processing movie {mv}: {e}", "error")
+                continue
+
+        if not found_link or not successful_movie:
+            await state.log("No playable link found for any suggestion", "error")
+            # Send error via WebSocket
+            if state.websocket_manager:
+                await state.websocket_manager.broadcast(
+                    state.job_id,
+                    {"type": "error", "message": "No playable movies found"}
+                )
+            return {"status": "error", "logs": state.logs}
+
+        # Build the final result
+        final_result = {
+            "title": successful_movie.get("title", "Unknown"),
+            "year":  successful_movie.get("year", "Unknown"), 
+            "why":   successful_movie.get("why", ""),
+            "url":   found_link,
+        }
+        
+        # Right before the WebSocket broadcast, add this:
+        print(f"🔧 About to broadcast result via WebSocket: {state.websocket_manager}")
+        print(f"🔧 Job ID: {state.job_id}")
+        print(f"🔧 Result to broadcast: {final_result}")
+
+        # Send result via WebSocket
+        if state.websocket_manager:
+            print("Broadcasting result...")
+            await state.websocket_manager.broadcast(
+                state.job_id,
+                {
+                    "type": "result", 
+                    "result": final_result
+                }
+            )
+            print("Broadcast complete!")
+        else:
+            print("No websocket_manager available!")
+        
+        # Debug print to see what we're returning
+        print(f"Backend returning: {json.dumps(final_result, indent=2)}")
+        
+        # Still return for any other consumers
         return {
             "status": "completed",
-            "result": best,
-            "logs": init.logs,
-            "iterations": out.get("iter", 0),
-            "verified_count": len(out.get("verified", [])),
+            "result": final_result,
+            "logs": state.logs,
         }
     except Exception as e:
-        msg = f"Error during search: {e}"
-        logger.error(msg, exc_info=True)
-        await init.log(msg, "error")
-        if init.websocket_manager:
-            await init.websocket_manager.broadcast(init.job_id, {"type": "error", "message": msg})
-        return {"status": "error", "error": str(e), "logs": init.logs}
+        logger.error(f"Unexpected error in run_backend: {e}", exc_info=True)
+        return {"status": "error", "error": str(e), "logs": getattr(state, 'logs', [])}
 
-# ──────────────────────────────────────────────  ad-hoc demo
+# async def run_backend(user_query: str) -> Dict[str, Any]:
+#     try:
+#         state = S(query=user_query)
+        
+#         await state.log(f"Starting search: {user_query}")
+
+#         try:
+#             movies = await recommend_titles(user_query)
+#             await state.log(f"Planner step: {movies}")
+#             logger.info(f"recommend_titles returned: {movies}")
+#         except Exception as e:
+#             logger.error(f"Error in recommend_titles: {e}", exc_info=True)
+#             await state.log(f"Error in recommend_titles: {e}", "error")
+#             return {"status": "error", "logs": state.logs, "error": str(e)}
+        
+#         if not movies:
+#             await state.log("FilmScout returned nothing", "error")
+#             return {"status": "error", "logs": state.logs}
+
+#         for mv in movies:
+#             try:
+#                 await state.log(f"Trying {mv.get('title', 'Unknown')} ({mv.get('year', 'Unknown')}) …")
+                
+#                 # Create callback INSIDE the loop to ensure fresh state reference
+#                 cb = LogHandler(state)
+                
+#                 seed = f"\"{mv.get('title', '')}\" {mv.get('year', '')} full movie watch online"
+#                 prompt = (f"Find a playable link for \"{mv.get('title', '')}\" ({mv.get('year', '')}). "
+#                           f"Start with the query: {seed}")
+
+#                 result: str = await run_vid_agent(prompt, [cb])
+
+#                 # After agent completes, merge any additional logs from callback
+#                 # (In case they got disconnected)
+#                 if hasattr(cb, 'state') and cb.state.logs:
+#                     for log_entry in cb.state.logs:
+#                         if log_entry not in state.logs:
+#                             state.logs.append(log_entry)
+
+#                 # parse VidScout response
+#                 link = None
+#                 if isinstance(result, str):
+#                     if result.lstrip().upper().startswith("FINISH:"):
+#                         link = result.split(":", 1)[1].strip()
+#                     else:
+#                         m = URL_RE.search(result)
+#                         link = m.group(0) if m else None
+
+#                 if link:
+#                     state.best = link
+#                     await state.log(f"Success → {link}", "success")
+#                     break
+                    
+#             except Exception as e:
+#                 logger.error(f"Error processing movie {mv}: {e}", exc_info=True)
+#                 await state.log(f"Error processing movie {mv}: {e}", "error")
+#                 continue
+
+#         if not state.best:
+#             await state.log("No playable link found for any suggestion", "error")
+#             return {"status": "error", "logs": state.logs}
+
+#         # return {
+#         #     "status": "completed",
+#         #     "result": {
+#         #         "title": mv.get("title", "Unknown"),
+#         #         "year":  mv.get("year", "Unknown"),
+#         #         "why":   mv.get("why", ""),
+#         #         "url":   state.best,
+#         #     },
+#         #     "logs": state.logs,  # This should now contain all the detailed logs
+#         # }
+#         return {
+#             "status": "completed",
+#             "result": {
+#                 "title": mv.get("title", "Unknown"),
+#                 "year":  mv.get("year", "Unknown"), 
+#                 "why":   mv.get("why", ""),
+#                 "url":   link,
+#             },
+#             "logs": state.logs,
+#         }
+        
+#     except Exception as e:
+#         logger.error(f"Unexpected error in run_backend: {e}", exc_info=True)
+#         return {"status": "error", "error": str(e), "logs": getattr(state, 'logs', [])}
+
+
+main = run_backend
+
+# --------------- ad-hoc demo -------------------------------------------------
 if __name__ == "__main__":
-    async def run():
-        state = S(query="Big Buck Bunny 2008 1080p mp4 download", iter=0, bad_urls=[])
-        result = await main(state)
-        print(json.dumps(result, indent=2))
-
-    asyncio.run(run())
+    demo_q = "Find me a good evening movie about finance and entrepreneurship."
+    out = asyncio.run(run_backend(demo_q))
+    print(json.dumps(out, indent=2))

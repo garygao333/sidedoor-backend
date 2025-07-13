@@ -17,7 +17,8 @@ from pydantic import BaseModel
 # Add the backend directory to the path so we can import inference
 sys.path.append(str(Path(__file__).parent.absolute()))
 
-from inference import main as run_inference, S
+# from inference import main as run_inference, S
+from inference import run_backend, S
 
 app = FastAPI(title="Media Search API")
 
@@ -136,45 +137,42 @@ async def websocket_endpoint(websocket: WebSocket, job_id: str):
 
 async def process_search(job_id: str, query: str):
     try:
-        # Initialize the search state
-        init = S(
-            query=query,
-            iter=0,
-            bad_urls=[],
-            websocket_manager=manager,
-            job_id=job_id
-        )
-        
         # Update job status
         jobs[job_id]["status"] = "processing"
         await manager.broadcast(job_id, {"type": "status", "status": "processing"})
         
-        # Run the inference
-        result = await run_inference(init)
+        # Run the NEW FilmScout backend (not the old inference)
+        result = await run_backend(query, manager, job_id)
         
-        # Update job with results
+        print(f"🔧 Main.py received result: {result}")
+        
+        # Handle the NEW result format
         if result.get("status") == "completed" and result.get("result"):
+            movie_result = result["result"]
+            
+            # Store in the old format for backward compatibility (polling endpoint)
             jobs[job_id]["results"] = [{
-                "title": result["result"].get("title", "Untitled"),
+                "title": movie_result.get("title", "Untitled"),
                 "type": "video",
-                "file_id": result["result"].get("gcs_url", "").split("/")[-1],
-                "size": result["result"].get("size", 0),
+                "file_id": "",  # No file ID for streaming links
+                "size": 0,      # No file size for streaming links
                 "quality": "HD",
                 "verified": True,
-                "url": result["result"].get("gcs_url", "")
+                "url": movie_result.get("url", "")  # Use the actual streaming URL
             }]
-        
-        # Update job status
-        jobs[job_id]["status"] = "completed"
-        jobs[job_id]["completed_at"] = datetime.utcnow().isoformat()
-        
-        # Send completion message
-        await manager.broadcast(job_id, {
-            "type": "status",
-            "status": "completed",
-            "results": jobs[job_id]["results"]
-        })
-        
+            
+            # The WebSocket result is already sent by run_inference
+            # Just update job status
+            jobs[job_id]["status"] = "completed"
+            jobs[job_id]["completed_at"] = datetime.utcnow().isoformat()
+            
+        elif result.get("status") == "error":
+            # Handle error case
+            jobs[job_id]["status"] = "failed"
+            jobs[job_id]["error"] = result.get("error", "Unknown error")
+            
+            # Error is already sent by run_inference via WebSocket
+            
     except Exception as e:
         print(f"Error processing job {job_id}: {str(e)}")
         if job_id in jobs:
@@ -189,6 +187,63 @@ async def process_search(job_id: str, query: str):
         await asyncio.sleep(300)  # Keep results for 5 minutes
         if job_id in jobs:
             del jobs[job_id]
+
+# async def process_search(job_id: str, query: str):
+#     try:
+#         # Initialize the search state
+#         init = S(
+#             query=query,
+#             iter=0,
+#             bad_urls=[],
+#             websocket_manager=manager,
+#             job_id=job_id
+#         )
+        
+#         # Update job status
+#         jobs[job_id]["status"] = "processing"
+#         await manager.broadcast(job_id, {"type": "status", "status": "processing"})
+        
+#         # Run the inference
+#         # result = await run_inference(init)
+#         result = await run_backend(query, manager, job_id)
+        
+#         # Update job with results
+#         if result.get("status") == "completed" and result.get("result"):
+#             jobs[job_id]["results"] = [{
+#                 "title": result["result"].get("title", "Untitled"),
+#                 "type": "video",
+#                 "file_id": result["result"].get("gcs_url", "").split("/")[-1],
+#                 "size": result["result"].get("size", 0),
+#                 "quality": "HD",
+#                 "verified": True,
+#                 "url": result["result"].get("gcs_url", "")
+#             }]
+        
+#         # Update job status
+#         jobs[job_id]["status"] = "completed"
+#         jobs[job_id]["completed_at"] = datetime.utcnow().isoformat()
+        
+#         # Send completion message
+#         await manager.broadcast(job_id, {
+#             "type": "status",
+#             "status": "completed",
+#             "results": jobs[job_id]["results"]
+#         })
+        
+#     except Exception as e:
+#         print(f"Error processing job {job_id}: {str(e)}")
+#         if job_id in jobs:
+#             jobs[job_id]["status"] = "failed"
+#             jobs[job_id]["error"] = str(e)
+#             await manager.broadcast(job_id, {
+#                 "type": "error",
+#                 "message": f"Search failed: {str(e)}"
+#             })
+#     finally:
+#         # Clean up after some time
+#         await asyncio.sleep(300)  # Keep results for 5 minutes
+#         if job_id in jobs:
+#             del jobs[job_id]
 
 if __name__ == "__main__":
     import uvicorn
