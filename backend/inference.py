@@ -7,6 +7,8 @@ from agents.vid_scout import run_vid_agent
 from utils.helpers import parse_agent_result
 from core.state import SearchState
 from tools.validation import check_playable
+import re
+
 
 async def run_backend(user_query: str, websocket_manager=None, job_id: str = "") -> Dict[str, Any]:
     # global current_state 

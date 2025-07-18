@@ -9,10 +9,16 @@ if "GOOGLE_API_KEY" not in os.environ:
     raise RuntimeError("GOOGLE_API_KEY env-var is required")
 if "EXA_API_KEY" not in os.environ:
     raise RuntimeError("EXA_API_KEY env-var is required")
+if "TOGETHER_API_KEY" not in os.environ:
+    raise RuntimeError("TOGETHER_API_KEY env-var is required")
+if "OPENAI_API_KEY" not in os.environ:
+    raise RuntimeError("OPENAI_API_KEY env-var is required")
 
 # API Keys
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 EXA_API_KEY = os.getenv("EXA_API_KEY")
+TOGETHER_API_KEY = os.getenv("TOGETHER_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # Regex patterns
 URL_RE = re.compile(r'https?://\S+')

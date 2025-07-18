@@ -16,8 +16,10 @@ langchain-core>=0.1.0
 google-cloud-storage
 nest-asyncio
 langgraph
+gunicorn==21.2.0
 duckduckgo_search
 langchain_google_genai
+langchain_together
 
 exa_py
 httpx>=0.26.0
