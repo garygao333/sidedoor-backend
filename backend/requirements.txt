@@ -1,23 +1,23 @@
 # Core
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-python-multipart==0.0.6
-python-dotenv==1.0.0
+fastapi
+uvicorn[standard]
+python-multipart
+python-dotenv
 
 # Pydantic
-pydantic==2.5.3
-pydantic-settings==2.0.3
+pydantic
+pydantic-settings
 
 # Web & Async
-aiohttp==3.9.0
-httpx==0.26.0
-nest-asyncio==1.6.0
+aiohttp
+httpx
+nest-asyncio
 
 # LangChain (pinned versions for stability)
-langchain==0.1.16
-langchain-core==0.1.0
-langchain-community==0.0.29
-langchain-openai==0.0.1
+langchain
+langchain-core
+langchain-community
+langchain-openai
 
 # Optional LangChain components (comment out if not needed)
 # langchain-google-genai==0.0.7
@@ -25,9 +25,9 @@ langchain-openai==0.0.1
 # langgraph==0.0.20
 
 # Other utilities
-tiktoken==0.6.0
-duckduckgo-search==3.9.6
-google-cloud-storage==2.13.0
+tiktoken
+duckduckgo-search
+google-cloud-storage
 
 # Production
-gunicorn==21.2.0
+gunicorn
