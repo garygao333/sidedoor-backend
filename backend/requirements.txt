@@ -1,11 +1,14 @@
 # Core
-fastapi
+fastapi==0.104.1
 uvicorn[standard]
 python-multipart
 python-dotenv
 
 # Pydantic
 pydantic==1.10.13
+pydantic-settings==0.2.1
+
+fastapi==0.104.1
 
 # Web & Async
 aiohttp
