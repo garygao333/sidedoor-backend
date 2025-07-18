@@ -5,8 +5,8 @@ python-multipart
 python-dotenv
 
 # Pydantic
-pydantic
-pydantic-settings
+pydantic==1.10.13
+pydantic-settings==1.10.13
 
 # Web & Async
 aiohttp
@@ -14,10 +14,10 @@ httpx
 nest-asyncio
 
 # LangChain (pinned versions for stability)
-langchain
-langchain-core
-langchain-community
-langchain-openai
+langchain==0.0.286
+langchain-core==0.0.286
+langchain-community==0.0.286
+langchain-openai==0.0.286
 
 # Optional LangChain components (comment out if not needed)
 # langchain-google-genai==0.0.7
